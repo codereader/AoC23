@@ -8,11 +8,11 @@ let lines = IO.File.ReadAllLines "..\..\..\input.txt"
 
 let indexIsValid ((_: int, index: int)) = index >= 0
 
-let getLineNumber (line: String, possibleWords: seq<Tuple<int, string>>) =
+let getLineNumber (line: string, possibleWords) =
     // First and last index of any possible word
     let first =
       possibleWords
-      |> Seq.map (fun (value, word) -> (value, line.IndexOf word))
+      |> Seq.map (fun (value, word: string) -> (value, line.IndexOf word))
       |> Seq.filter indexIsValid
       |> Seq.sortBy snd // sort by value
       |> Seq.head
