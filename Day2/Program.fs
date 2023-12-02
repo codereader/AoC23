@@ -1,9 +1,8 @@
 ﻿open System
 open Day2
 
-let lines = IO.File.ReadAllLines "..\..\..\input.txt"
-
 // Game 1: 7 green, 4 blue, 3 red; 4 blue, 10 red, 1 green; 1 blue, 9 red
+let lines = IO.File.ReadAllLines "..\..\..\input.txt"
 
 let games = lines |> Seq.map Game |> List.ofSeq
 
@@ -13,15 +12,14 @@ let possibleColours =
         Add(Colour.Green, 13).
         Add(Colour.Blue, 14)
 
-let gameIsPossible (game: Game) =
-    game.IsPossible possibleColours
-
 printfn "%d games parsed" games.Length
+printfn "%d games are possible" (Seq.length (games |> Seq.filter (fun game -> game.IsPossible possibleColours)))
 
-let possibleGames = games |> Seq.filter gameIsPossible
+let sumOfPossibleGames = games |> Seq.filter (fun game -> game.IsPossible possibleColours) |> Seq.map (fun game -> game.Id) |> Seq.sum
 
-printfn "%d games are possible" (Seq.length possibleGames)
+printfn "[Part 1]: ID sum of possible games: %d" sumOfPossibleGames
 
-let sumOfPossibleGames = possibleGames |> Seq.map (fun (game) -> game.Id) |> Seq.sum
+// Part 2: Get the power of all games, and sum it up
+let totalPower = games |> Seq.sumBy (fun game -> game.Power)
+printfn "[Part 2]: Power sum of games: %d" totalPower
 
-printfn "[Part 1]: ID Sum of possible games: %d" sumOfPossibleGames
