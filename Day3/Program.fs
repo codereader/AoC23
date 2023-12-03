@@ -33,7 +33,7 @@ type Number(startX, endX, lineIndex) =
         let foundSymbol = surrounding |> Seq.tryFind IsSymbol
         foundSymbol.IsSome
 
-    member private this.TryFindGearPosition : Tuple<int, int> option =
+    member private this.TryFindGearPosition =
         let surrounding = this.GetSurroundingCoordinates ((startX,endX), lineIndex)
         surrounding |> Seq.tryFind (fun (x,y) -> map[y][x] = '*')
 
