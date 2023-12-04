@@ -21,6 +21,11 @@ type Card(id, winningNumbers: Set<int>, availableNumbers: List<int>) =
 
         Card(id, winningNumbers, availableNumbers)
 
+    member this.Matches =
+        this.AvailableNumbers |> Seq.filter (fun number -> this.WinningNumbers.Contains(number))
+
     member this.Value =
-        let matches = this.AvailableNumbers |> Seq.filter (fun number -> this.WinningNumbers.Contains(number)) |> Seq.length
+        let matches = this.Matches |> Seq.length
         if matches = 0 then 0 else (1 <<< matches - 1)
+
+    member val Occurrences = 1 with get, set
