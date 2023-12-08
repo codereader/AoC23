@@ -63,18 +63,6 @@ let MapSeed (inputSeed: int64) =
 let minimumLocation = seeds |> Seq.map MapSeed |> Seq.min
 printfn $"[Part 1] Minimum Location (per seed): {minimumLocation}"
 
-(*
-let minimumLocationOfRange =
-    seeds
-    |> Seq.pairwise
-    |> Seq.collect (fun (start, length) ->
-        printfn $"Range: {start}..{start+length-1L}"
-        seq { start..(start+length-1L) })
-    |> Seq.map MapSeed |> Seq.min
-
-printfn $"[Part 2] Minimum Location (per seed range): {minimumLocationOfRange}"
-*)
-
 // Part 2: Find the lowest location interval
 let part1SeedRanges =
     seeds
@@ -89,10 +77,9 @@ let seedRanges =
 
 let mutable inputSet = seedRanges |> Seq.sortBy (fun range -> range.Start)
 
-printf "Seed Ranges: "
-inputSet |> Seq.iter (fun range -> Console.Write $"{range}|")
-printfn ""
+printfn "Seed Ranges: %s" (String.Join("|", inputSet))
 
+// Complete the mapping to fill the gaps with NOP mappings, not translating the values at all
 let CreateDenseMapping(level: MappingCollection) =
     let result = MappingCollection([])
     
@@ -120,27 +107,28 @@ let CreateDenseMapping(level: MappingCollection) =
 
     result
 
-
+// Translate the given set of ranges to the next level using the mappings in the collection
 let TranslateInputSet (level: MappingCollection, rangesToTransform) =
+    // Fill the gaps of the incoming level mappings, the input outside the defined ranges will receive a NOP transform
     let denseMapping = CreateDenseMapping level
 
-    denseMapping.Mappings |> Seq.iter (fun mapping -> Console.Write $"{mapping.Source}|")
-    Console.WriteLine()
+    //denseMapping.Mappings |> Seq.iter (fun mapping -> Console.Write $"{mapping.Source}|")
+    //Console.WriteLine()
 
+    // For each mapping find the ones overlapping the given range
+    // Then calculate the intersection of the given range source range
+    // Translate that into the target space of the next level
     rangesToTransform |> Seq.collect (fun range ->
         denseMapping.Mappings
         |> Seq.filter (fun mapping -> mapping.SourceOverlaps range)
         |> Seq.map (fun mapping ->
+            // Calc the detailed intersection, translate this range to the next level
             let intersection = mapping.Source.GetIntersection(range)
             let mappedStart = mapping.Map(intersection.Start)
             let mappedEnd = mapping.Map(intersection.End)
-            let transformedRange = Range(mappedStart, mappedEnd - mappedStart + 1L)
-            transformedRange)
-        |> Seq.sortBy (fun r -> r.Start)
-        |> Seq.map (fun newRange -> 
-            Console.WriteLine($"{range} maps to {newRange}")
-            newRange
+            Range(mappedStart, mappedEnd - mappedStart + 1L)
             )
+        |> Seq.sortBy (fun r -> r.Start) // ensure all ranges are sorted before forwarding them
         |> Seq.toList
         )
 
@@ -148,70 +136,3 @@ allMappings |> Seq.iter (fun level -> (inputSet <- TranslateInputSet(level, inpu
 
 let minimumSet = inputSet |> Seq.minBy (fun set -> set.Start)
 printfn "[Part 2]: Minimum Location: %d" minimumSet.Start
-
-type RangeSet() =
-    member val Ranges: List<Range> = [] with get, set
-    member this.Add(range:Range):unit =
-        if (this.Ranges |> List.exists (fun r -> r.Start = range.Start)) then
-            this.Ranges <- this.Ranges @ [range]
-
-let mappings = allMappings |> List.rev
-
-
-let locationRanges = 
-    seq { 0L }
-    |> Seq.append (mappings.Head.Mappings |> Seq.map (fun mapping -> mapping.Destination.Start))
-    |> Seq.append (mappings.Head.Mappings |> Seq.map (fun mapping -> mapping.Destination.End))
-    |> Seq.distinct
-    |> Seq.sort
-    |> Seq.pairwise
-    |> Seq.map (fun pair -> Range(fst pair, fst pair + snd pair - 1L))
-
-
-
-printfn "%A" locationRanges
-
-//List.sortBy (fun range -> range.Destination.Start)
-
-
-(*
-
-
-let FindBestSoilRange (startRange: Mapping -> Mapping option) =
-    let mutable currentRange: Mapping option = startRange
-    mappings.Tail
-    |> List.iter (fun mapping ->
-        let rangesFromLeft = mapping.Mappings |> List.sortBy (fun range -> range.Destination.Start)
-        let overlappingRange = rangesFromLeft |> List.tryFind (fun range -> currentRange.IsSome && range.OverlapsSourceOf(currentRange.Value))
-        currentRange <- overlappingRange
-    )
-    currentRange
-
-let bestSoilRanges = bestHumidityMappings |> Seq.map FindBestSoilRange
-
-bestSoilRanges |> Seq.iter (fun mapping ->
-    printfn "Best Soil Range %d..%d" mapping.Source.Start mapping.Source.End)
-
-let part1SeedRanges = seeds |> Seq.map (fun seed -> Range(seed, 1)) |> Seq.sortBy (fun range -> range.Start)
-
-let seedRanges =
-    seeds
-    |> Seq.pairwise
-    |> Seq.sortByDescending fst
-    |> Seq.map Range
-
-//let bestSoilRange =
-//    bestSoilRanges |> Seq.find (fun mapping -> mapping.Source.Overlaps(seedRange)
-//
-//let bestSeedRange =
-//    part1SeedRanges
-//    |> Seq.find (fun seedRange -> )
-//
-//printfn "Best Seed Range %d..%d" bestSeedRange.Start bestSeedRange.End
-//
-//let bestSeedValue = Math.Max(bestSeedRange.Start, bestSoilRange.Source.Start)
-//printfn "Seed Value leading to lowest Location: %d" bestSeedValue
-//printfn "[Part 2]: Lowest location value: %d" (MapSeed bestSeedValue)
-
-
-*)
