@@ -18,7 +18,7 @@ type HandType =
 type Hand(hand:string, bid: int) =
     member val Hand = hand with get
     member val Bid = bid with get
-    member this.Type = this.DetermineType(this.Hand)
+    member this.Type = Hand.DetermineType(this.Hand)
 
     // The numeric value representing the hand's strength, used for breaking ties
     member this.Value = this.CalculateHexValue(this.Hand)
@@ -30,7 +30,7 @@ type Hand(hand:string, bid: int) =
         sprintf "%s %d [%A] (Value %s, Rank %d)" this.Hand this.Bid this.Type (this.GetHexStringForHand(this.Hand)) this.Rank
 
     // Determine the hand's type based on the given string
-    member this.DetermineType(hand: seq<char>) =
+    static member DetermineType(hand: seq<char>) =
         let counts =
             hand
             |> Seq.groupBy (fun ch -> ch)
@@ -82,13 +82,14 @@ let rec GetCombinations acc size set = seq {
 
 let AllCardsWithoutJoker = ['A';'K';'Q';'T';'9';'8';'7';'6';'5';'4';'3';'2']
 
+// The Part 2 Subtype of a game's hand is automatically determining the card's best possible type by filling in the jokers
 type Part2Hand (hand:string, bid: int) =
     inherit Hand(hand, bid)
 
     member val HandWithJokersFilledIn = "" with get, set
     member val TypeWithJokersFilledIn = HandType.HighCard with get, set
 
-    member this.DetermineBestValue() =
+    member this.FillJokers() =
         Console.Write("Checking {0}...", this.Hand)
 
         // Get the string positions the jokers are sitting at
@@ -105,13 +106,13 @@ type Part2Hand (hand:string, bid: int) =
             GetCombinations [] jokerSlots.Length AllCardsWithoutJoker
             // Distribute the combinations to the available slots and check that hand's type
             |> Seq.map (fun combo -> this.FillJokers(jokerSlots, combo))
-            |> Seq.map (fun combo -> (combo, (this.DetermineType combo), (this.CalculateHexValue combo)))
-            |> Seq.sortByDescending (fun (_,c,value) -> c, value)
+            |> Seq.map (fun combo -> (combo, (Hand.DetermineType combo)))
+            |> Seq.sortByDescending (fun (_,c) -> c, this.Value)
 
-        let (combo, cls, value) = bestCombo |> Seq.head
+        let combo = bestCombo |> Seq.head |> fst
 
         this.HandWithJokersFilledIn <- new String(combo)
-        this.TypeWithJokersFilledIn <- cls
+        this.TypeWithJokersFilledIn <- Hand.DetermineType this.HandWithJokersFilledIn
 
         Console.WriteLine("found {0}", this.HandWithJokersFilledIn)
 
@@ -127,13 +128,12 @@ type Part2Hand (hand:string, bid: int) =
         | 'A' -> 'E'
         | 'K' -> 'D'
         | 'Q' -> 'C'
-        | 'J' -> '1' // assign lower value for the Joker
+        | 'J' -> '1' // assign lower value for the Joker, this is important for tie-breaking in the ranking
         | 'T' -> 'A'
         | _ -> ch
 
     override this.ToString() =
         sprintf "%s [Optimised: %s, Class: %A]" (base.ToString()) this.HandWithJokersFilledIn this.TypeWithJokersFilledIn
-
 
 let hands =
     lines
@@ -164,9 +164,8 @@ let part2Hands =
     |> Seq.map (fun arr -> Part2Hand(arr[0], int arr[1]))
     |> Seq.toArray
 
-// Determine the card's best possible type by filling in the jokers
 part2Hands
-    |> Seq.iter (fun hand -> hand.DetermineBestValue())
+    |> Seq.iter (fun hand -> hand.FillJokers())
 
 // Careful when sorting the new hands, only the card type is using jokers, the value is the same
 // "However, for the purpose of breaking ties between two hands of the same type, J is always treated as J, not the card it's pretending to be"
