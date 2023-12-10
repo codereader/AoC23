@@ -9,43 +9,33 @@ let sequences =
     |> Seq.map (fun strings -> strings |> Array.map Int32.Parse)
     |> Seq.toArray
 
-// The next interpolated value for the given sequence
-let rec GetFutureExtrapolatedValue(sequence: int array) =
-    let mutable differenceSum = 0
-    let differences = 
-        { 1..sequence.Length - 1 }
+let GetDifferences(sequence: int array) =
+    { 1..sequence.Length - 1 }
         |> Seq.map (fun i -> sequence[i] - sequence[i-1])
-        |> Seq.map (fun i ->
-            differenceSum <- differenceSum + i
-            i)
         |> Seq.toArray
 
+// The next extrapolated value for the given sequence
+let rec GetFutureExtrapolatedValue(sequence: int array) =
+    let differences = GetDifferences(sequence)
+
     let childInterpolation =
-        if differenceSum = 0 then 0 else GetFutureExtrapolatedValue differences
+        if Seq.sum differences = 0 then 0 else GetFutureExtrapolatedValue differences
 
     sequence[sequence.Length - 1] + childInterpolation
 
-let extrapolations = sequences |> Seq.map GetFutureExtrapolatedValue
-let extrapolationSum = extrapolations |> Seq.sum
-
-printfn "[Part 1]: Sum of all future extrapolated values: %d" extrapolationSum
-
+// The interpolated value before the start of the given sequence
 let rec GetPastExtrapolatedValue(sequence: int array) =
-    let mutable differenceSum = 0
-    let differences = 
-        { 1..sequence.Length - 1 }
-        |> Seq.map (fun i -> sequence[i] - sequence[i-1])
-        |> Seq.map (fun i ->
-            differenceSum <- differenceSum + i
-            i)
-        |> Seq.toArray
+    let differences = GetDifferences(sequence)
 
     let childInterpolation =
-        if differenceSum = 0 then 0 else GetPastExtrapolatedValue differences
+        if Seq.sum differences = 0 then 0 else GetPastExtrapolatedValue differences
 
     sequence[0] - childInterpolation
 
-let pastExtrapolations = sequences |> Seq.map GetPastExtrapolatedValue
-let pastExtrapolationSum = pastExtrapolations |> Seq.sum
+let futureSum = sequences |> Seq.map GetFutureExtrapolatedValue |> Seq.sum
 
-printfn "[Part 2]: Sum of all past extrapolated values: %d" pastExtrapolationSum
+printfn "[Part 1]: Sum of all future extrapolated values: %d" futureSum
+
+let pastSum = sequences |> Seq.map GetPastExtrapolatedValue |> Seq.sum
+
+printfn "[Part 2]: Sum of all past extrapolated values: %d" pastSum
