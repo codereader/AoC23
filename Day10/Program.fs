@@ -52,6 +52,7 @@ let ValidOutgoingDirectionsForPipe =
        'J',  [| North; West |];
        'L',  [| North; East |];
        '7',  [| South; West |];
+       'S',  [| North; West; South; East |];
     ]
 
 let mutable network = Set.empty<Vector2>
@@ -67,22 +68,39 @@ let OutgoingDirectionIsValid(pipeChar: char, direction) =
 let TargetPipeMatchesDirection(pipeChar: char, direction) =
     ValidPipesForIncomingDirection[direction] |> Array.contains pipeChar
 
-let rec ExpandNetworkFromPosition(node:NetworkNode, direction) =
-    let newPos = node.Position + direction
+let TargetDirectionIsValid(position, direction) =
+    let newPos = position + direction
+    network.Contains(newPos) = false &&
+        pipeMap.ContainsKey(newPos) &&
+        OutgoingDirectionIsValid(pipeMap[position], direction) &&
+        TargetPipeMatchesDirection(pipeMap[newPos], direction)
 
-    if network.Contains(newPos) = false && (pipeMap.ContainsKey newPos) && TargetPipeMatchesDirection(pipeMap[newPos], direction) then
-        printfn "Expand from %A to %A" node.Position newPos
+let TryFindValidDirection(node:NetworkNode) =
+    NESW |> Seq.tryFind (fun dir -> TargetDirectionIsValid(node.Position, dir))
+
+let ExpandNetworkFromPosition(node:NetworkNode) =
+    
+    let mutable currentNode = node
+
+    // Find the first valid direction that has not been investigated yet
+    let mutable validDirection = TryFindValidDirection(currentNode)
+
+    while validDirection.IsSome do
+        let newPos = currentNode.Position + validDirection.Value
+        printfn "Expand from %A to %A" currentNode.Position newPos
+
         network <- network.Add(newPos)
+
         let newNode = NetworkNode(newPos)
         networkNodes <- networkNodes @ [newNode]
-        node.Forward <- Some(newNode)
-        newNode.Back <- Some(node)
-        NESW
-            |> Seq.filter (fun dir -> OutgoingDirectionIsValid(pipeMap[newPos], dir))
-            |> Seq.iter (fun dir -> ExpandNetworkFromPosition(node.Forward.Value, dir))
+        currentNode.Forward <- Some(newNode)
+        newNode.Back <- Some(currentNode)
 
-NESW
-    |> Seq.iter (fun dir -> ExpandNetworkFromPosition(startNode, dir))
+        currentNode <- newNode
+        validDirection <- TryFindValidDirection(currentNode)
+
+networkNodes <- networkNodes @ [startNode]
+ExpandNetworkFromPosition(startNode)
 
 let rec FindForwardEnd(node:NetworkNode) =
     let next = node.Forward
