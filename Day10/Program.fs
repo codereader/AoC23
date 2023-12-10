@@ -87,7 +87,7 @@ let ExpandNetworkFromPosition(node:NetworkNode) =
 
     while validDirection.IsSome do
         let newPos = currentNode.Position + validDirection.Value
-        printfn "Expand from %A to %A" currentNode.Position newPos
+        //printfn "Expand from %A to %A" currentNode.Position newPos
 
         network <- network.Add(newPos)
 
@@ -102,23 +102,16 @@ let ExpandNetworkFromPosition(node:NetworkNode) =
 networkNodes <- networkNodes @ [startNode]
 ExpandNetworkFromPosition(startNode)
 
+// Link the last found node in the forward sequence to the start node
 let rec FindForwardEnd(node:NetworkNode) =
     let next = node.Forward
     if next.IsSome then FindForwardEnd(next.Value) else node
 
 startNode.Back <- Some(FindForwardEnd startNode)
 
-lines
-    |> Seq.iter (fun line -> printfn "%s" line)
-
-printfn "%A" pipeMap
 printfn "Start Position: %A" startPos
 
-let mutable currentNode = startNode
-while currentNode.Forward.IsSome do
-    printfn "%A %A" currentNode.Position pipeMap[currentNode.Position]
-    currentNode <- currentNode.Forward.Value
-
+// Print the map with the pipe network coloured in red
 let defaultColour = Console.ForegroundColor
 
 for y in { 0..lines.Length - 1 } do
@@ -131,6 +124,7 @@ for y in { 0..lines.Length - 1 } do
         printf "%c" pipeMap[Vector2(x,y)]
     printfn ""
 
+// Check all the distances of all network nodes by moving forward and backward from the start
 let rec CollectDistances(node:NetworkNode, forward: bool, distance: int) =
     let next = if forward then node.Forward else node.Back
     node.DistanceToStart <- System.Math.Min(node.DistanceToStart, distance)
