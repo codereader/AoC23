@@ -66,6 +66,7 @@ let startNode = NetworkNode(startPos)
 network <- network.Add(startPos)
 
 let mutable networkNodes = List.empty<NetworkNode>
+let mutable containedTiles = Set.empty<Vector2>
 
 let OutgoingDirectionIsValid(pipeChar: char, direction) =
     ValidOutgoingDirectionsForPipe[pipeChar] |> Array.contains direction
@@ -118,19 +119,6 @@ lastNode.Forward <- Some(startNode)
 
 printfn "Start Position: %A" startPos
 
-// Print the map with the pipe network coloured in red
-let defaultColour = Console.ForegroundColor
-
-for y in { 0..lines.Length - 1 } do
-    let line = lines[y]
-    for x in { 0..line.Length - 1 } do
-        if network.Contains(Vector2(x,y)) then
-            Console.ForegroundColor <- ConsoleColor.Red
-        else
-            Console.ForegroundColor <- defaultColour
-        printf "%c" pipeMap[Vector2(x,y)]
-    printfn ""
-
 // Check all the distances of all network nodes by moving forward and backward from the start
 let rec CollectDistances(node:NetworkNode, forward: bool, distance: int) =
     let next = if forward then node.Forward else node.Back
@@ -145,7 +133,7 @@ let farthestNode = networkNodes |> Seq.maxBy (fun node -> node.DistanceToStart)
 
 printfn "[Part 1] Farthest Node at %A with distance %d" farthestNode.Position farthestNode.DistanceToStart
 
-// Expand the grid to make room for the spaces in between the pipes
+// Part 2: Expand the grid to make room for the spaces in between the pipes
 
 let maxY = lines.Length - 1
 let maxX = lines[0].Length - 1
@@ -167,6 +155,7 @@ let spacedLayout = seq {
         for x in spacedX do
             yield Vector2f(x, y) }
 
+// Initialise the spaced grid with all dots
 spacedLayout |> Seq.iter (fun pos -> spacedMap.Add(pos, '.'))
 
 let PrintSpacedMap() =
@@ -178,9 +167,6 @@ let PrintSpacedMap() =
 let FloatVector(input: Vector2) =
     Vector2f(float input.X, float input.Y)
 
-let GetConnectionChar(node, next) =
-    'X'
-
 let FillPipe() =
     let mutable node = Some(startNode)
     let startFloatPos = FloatVector node.Value.Position
@@ -191,12 +177,9 @@ let FillPipe() =
         let pipeChar = pipeMap[node.Value.Position]
         spacedMap[floatPos] <- pipeChar
 
-        // Check the east
-        let eastPos = node.Value.Position + East
-
         let next = node.Value.Forward
         if next.IsSome then
-            let connectionChar = GetConnectionChar(node.Value, next.Value)
+            let connectionChar = 'X' // just use any character, doesn't have to look good
             let nextDirection = FloatVector(next.Value.Position - node.Value.Position)
             spacedMap[floatPos + nextDirection / 2.0] <- connectionChar
             node <- if next.Value <> startNode then next else None
@@ -221,42 +204,42 @@ let borderTile =
 
 spacedMap[borderTile] <- 'O'
 
-let NESWf =
+let GetOrthogonalPositions(pos) =
     NESW
     |> Seq.map FloatVector
     |> Seq.map (fun vec -> vec / 2.0)
-    |> Seq.toArray
+    |> Seq.map (fun dir -> pos + dir) |> Seq.toList
 
-let mutable investigatedPositions = Set.empty<Vector2f>
-investigatedPositions <- investigatedPositions.Add(borderTile)
+let FloodFillOutside(borderTile) =
+    let mutable investigatedPositions = Set.empty<Vector2f>
+    investigatedPositions <- investigatedPositions.Add(borderTile)
 
-let mutable positionsToCheck = NESWf |> Seq.map (fun dir -> borderTile + dir) |> Seq.toList
+    let mutable positionsToCheck = GetOrthogonalPositions borderTile
 
+    while positionsToCheck.Length > 0 do
+        let pos = positionsToCheck.Head
+        positionsToCheck <- positionsToCheck.Tail
+
+        if investigatedPositions.Contains(pos) = false && spacedMap.ContainsKey(pos) then
+            // Spread out from all empty positions
+            if spacedMap[pos] = '.' then
+                spacedMap[pos] <- 'O'
+                positionsToCheck <- positionsToCheck @ GetOrthogonalPositions pos
+            investigatedPositions <- investigatedPositions.Add(pos)
+
+FloodFillOutside(borderTile)
 PrintSpacedMap()
 
-while positionsToCheck.Length > 0 do
-    let pos = positionsToCheck.Head
-
-    positionsToCheck <- positionsToCheck.Tail
-
-    if investigatedPositions.Contains(pos) = false && spacedMap.ContainsKey(pos) then
-        if spacedMap[pos] = '.' then
-            spacedMap[pos] <- 'O'
-            // Spread out from here
-            positionsToCheck <- positionsToCheck @ (NESWf |> Seq.map (fun dir -> pos + dir) |> Seq.toList)
-        investigatedPositions <- investigatedPositions.Add(pos)
-    //PrintSpacedMap()
-
-PrintSpacedMap()
-
-let containedTiles = 
+containedTiles <-
     spacedMap 
     |> Seq.filter (fun pair -> pair.Value = '.')
     |> Seq.filter (fun pair -> pair.Key.X = Math.Round(pair.Key.X) && pair.Key.Y = Math.Round(pair.Key.Y))
     |> Seq.map (fun pair -> Vector2(int pair.Key.X, int pair.Key.Y))
-    |> Seq.toList
+    |> set
 
 // Print the map with the pipe network coloured in red
+let defaultColour = Console.ForegroundColor
+
 for y in { 0..lines.Length - 1 } do
     let line = lines[y]
     for x in { 0..line.Length - 1 } do
@@ -264,7 +247,7 @@ for y in { 0..lines.Length - 1 } do
         if network.Contains(pos) then
             Console.ForegroundColor <- ConsoleColor.Red
             printf "%c" pipeMap[pos]
-        else if containedTiles |> List.contains pos then
+        else if containedTiles.Contains(pos) then
             Console.ForegroundColor <- ConsoleColor.Green
             printf "%c" 'I'
         else
@@ -272,9 +255,4 @@ for y in { 0..lines.Length - 1 } do
             printf "%c" pipeMap[pos]
     printfn ""
 
-
-let containedTileCount = 
-    containedTiles
-    |> Seq.length
-
-printfn "[Part 2] Inner Tile Count %d" containedTileCount
+printfn "[Part 2] Inner Tile Count %d" containedTiles.Count
