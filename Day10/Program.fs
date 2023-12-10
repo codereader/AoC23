@@ -1,15 +1,20 @@
 ﻿open System
 open Utils
 open Day10
+open System.Collections.Generic
 
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 (*
-lines <- "7-F7-
-.FJ|7
-SJLL7
-|F--J
-LJ.LJ".Replace("\r\n", "\n").Split('\n')
+lines <- "...........
+.S-------7.
+.|F-----7|.
+.||.....||.
+.||.....||.
+.|L-7.F-J|.
+.|..|.|..|.
+.L--J.L--J.
+...........".Replace("\r\n", "\n").Split('\n')
 *)
 
 let pipeMap =
@@ -107,7 +112,9 @@ let rec FindForwardEnd(node:NetworkNode) =
     let next = node.Forward
     if next.IsSome then FindForwardEnd(next.Value) else node
 
-startNode.Back <- Some(FindForwardEnd startNode)
+let lastNode = FindForwardEnd startNode
+startNode.Back <- Some(lastNode)
+lastNode.Forward <- Some(startNode)
 
 printfn "Start Position: %A" startPos
 
@@ -137,3 +144,137 @@ do CollectDistances(startNode, false, 0)
 let farthestNode = networkNodes |> Seq.maxBy (fun node -> node.DistanceToStart)
 
 printfn "[Part 1] Farthest Node at %A with distance %d" farthestNode.Position farthestNode.DistanceToStart
+
+// Expand the grid to make room for the spaces in between the pipes
+
+let maxY = lines.Length - 1
+let maxX = lines[0].Length - 1
+
+let mutable spacedMap = new Dictionary<Vector2f, char>()
+
+let spacedY = seq {
+    for y in seq { 0..maxY } do 
+        yield (float y)
+        yield (float y) + 0.5 }
+
+let spacedX = seq {
+    for x in seq { 0..maxX } do 
+        yield (float x)
+        yield (float x) + 0.5 }
+
+let spacedLayout = seq {
+    for y in spacedY do
+        for x in spacedX do
+            yield Vector2f(x, y) }
+
+spacedLayout |> Seq.iter (fun pos -> spacedMap.Add(pos, '.'))
+
+let PrintSpacedMap() =
+    for y in spacedY do
+        for x in spacedX do
+            printf "%c" spacedMap[Vector2f(x,y)]
+        printfn ""
+
+let FloatVector(input: Vector2) =
+    Vector2f(float input.X, float input.Y)
+
+let GetConnectionChar(node, next) =
+    'X'
+
+let FillPipe() =
+    let mutable node = Some(startNode)
+    let startFloatPos = FloatVector node.Value.Position
+    spacedMap[startFloatPos] <- 'S'
+
+    while node.IsSome do
+        let floatPos = FloatVector node.Value.Position
+        let pipeChar = pipeMap[node.Value.Position]
+        spacedMap[floatPos] <- pipeChar
+
+        // Check the east
+        let eastPos = node.Value.Position + East
+
+        let next = node.Value.Forward
+        if next.IsSome then
+            let connectionChar = GetConnectionChar(node.Value, next.Value)
+            let nextDirection = FloatVector(next.Value.Position - node.Value.Position)
+            spacedMap[floatPos + nextDirection / 2.0] <- connectionChar
+            node <- if next.Value <> startNode then next else None
+        else
+            node <- None
+
+FillPipe()
+
+// Find a position next to the border of the map
+let BorderPositions = seq {
+    for y in spacedY do
+        yield Vector2f(0,y)
+        yield Vector2f(float maxX,y)
+    for x in spacedX do
+        yield Vector2f(x,0)
+        yield Vector2f(x, float maxY)
+    }
+
+let borderTile = 
+    BorderPositions
+    |> Seq.find (fun pos -> spacedMap[pos] = '.')
+
+spacedMap[borderTile] <- 'O'
+
+let NESWf =
+    NESW
+    |> Seq.map FloatVector
+    |> Seq.map (fun vec -> vec / 2.0)
+    |> Seq.toArray
+
+let mutable investigatedPositions = Set.empty<Vector2f>
+investigatedPositions <- investigatedPositions.Add(borderTile)
+
+let mutable positionsToCheck = NESWf |> Seq.map (fun dir -> borderTile + dir) |> Seq.toList
+
+PrintSpacedMap()
+
+while positionsToCheck.Length > 0 do
+    let pos = positionsToCheck.Head
+
+    positionsToCheck <- positionsToCheck.Tail
+
+    if investigatedPositions.Contains(pos) = false && spacedMap.ContainsKey(pos) then
+        if spacedMap[pos] = '.' then
+            spacedMap[pos] <- 'O'
+            // Spread out from here
+            positionsToCheck <- positionsToCheck @ (NESWf |> Seq.map (fun dir -> pos + dir) |> Seq.toList)
+        investigatedPositions <- investigatedPositions.Add(pos)
+    //PrintSpacedMap()
+
+PrintSpacedMap()
+
+let containedTiles = 
+    spacedMap 
+    |> Seq.filter (fun pair -> pair.Value = '.')
+    |> Seq.filter (fun pair -> pair.Key.X = Math.Round(pair.Key.X) && pair.Key.Y = Math.Round(pair.Key.Y))
+    |> Seq.map (fun pair -> Vector2(int pair.Key.X, int pair.Key.Y))
+    |> Seq.toList
+
+// Print the map with the pipe network coloured in red
+for y in { 0..lines.Length - 1 } do
+    let line = lines[y]
+    for x in { 0..line.Length - 1 } do
+        let pos = Vector2(x,y)
+        if network.Contains(pos) then
+            Console.ForegroundColor <- ConsoleColor.Red
+            printf "%c" pipeMap[pos]
+        else if containedTiles |> List.contains pos then
+            Console.ForegroundColor <- ConsoleColor.Green
+            printf "%c" 'I'
+        else
+            Console.ForegroundColor <- defaultColour
+            printf "%c" pipeMap[pos]
+    printfn ""
+
+
+let containedTileCount = 
+    containedTiles
+    |> Seq.length
+
+printfn "[Part 2] Inner Tile Count %d" containedTileCount
