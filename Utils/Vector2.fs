@@ -1,4 +1,4 @@
-﻿namespace Utils
+﻿module Utils
 open System
 
 type Vector2(x,y) =
