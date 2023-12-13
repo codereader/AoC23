@@ -66,9 +66,9 @@ let CalculatePossibilitiesPart2(line:string) =
     let pieces = line.Split(' ')
 
     let values = String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] } |> Seq.toList)
-    let groupLengths = pieces[1].Split(',') |> Seq.map int |> Seq.toList |> Times5
+    let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList |> Times5
 
-    printfn "%s %s" values (String.Join(',', groupLengths))
+    printfn "%s %s" values (String.Join(',', requiredGroups))
 
     // Yields only completed groups
     let CompletedGroupsInLine(line:string) = seq {
@@ -77,52 +77,79 @@ let CalculatePossibilitiesPart2(line:string) =
         while hashStartIndex <> -1 do
             let hashEndIndex = line.IndexOf('.', hashStartIndex)
 
-            (*if hashEndIndex = -1 && line[line.Length - 1] = '#' then
-                yield line.Length - hashStartIndex // final group
-                hashStartIndex <- -1
-            else *)
             if hashEndIndex <> -1 then
-                yield hashEndIndex - hashStartIndex
+                yield (hashStartIndex, hashEndIndex) //hashEndIndex - hashStartIndex
                 hashStartIndex <- line.IndexOf('#', hashEndIndex)
             else
                 hashStartIndex <- -1
         }
 
-    let LineIsFullyValid(line:string) =
+    let LineIsFullyValid(line:string, requiredGroups) =
         let pieces = line.Split(' ')
         let value = pieces[0]
         let faultyLengths = value.Split('.', StringSplitOptions.RemoveEmptyEntries) |> Seq.map (fun v -> v.Length )
 
-        (Seq.compareWith Operators.compare faultyLengths groupLengths) = 0
+        (Seq.compareWith Operators.compare faultyLengths requiredGroups) = 0
 
-    let LineMightBeValid(line:string) =
-        let groupsInLine = CompletedGroupsInLine line
+    let CompletedGroupsAreValid(completedGroups, requiredGroups) =
         Seq.forall2 (fun group requirement ->
             //printfn "Req: %d Group %d" requirement group
-            requirement >= group) groupsInLine groupLengths
+            requirement >= group) completedGroups requiredGroups
 
-    let rec GenerateSubCombinations(fix:string, rest:string) = seq {
+    (*let LineMightBeValid(line:string, requiredGroups) =
+        let groupsInLine = CompletedGroupsInLine line
+        CompletedGroupsAreValid(groupsInLine, requiredGroups)*)
+
+    let GetRemainingGroups(completedGroups: int array, requiredGroups: int list) =
+        if completedGroups.Length = 0 then
+            requiredGroups
+        else
+            let mismatchingIndex =
+                seq { 0..requiredGroups.Length - 1 }
+                |> Seq.tryFind (fun i -> i >= completedGroups.Length || requiredGroups[i] <> completedGroups[i])
+
+            if mismatchingIndex.IsSome then requiredGroups[mismatchingIndex.Value ..] else []
+
+    let SplitRemainingString(input: string, groupIndices: (int * int) array) =
+        if groupIndices.Length > 0 then
+            let lastHashIndex = snd groupIndices[groupIndices.Length - 1]
+            (input.Substring(0, lastHashIndex), input.Substring(lastHashIndex+1))
+        else
+            ("", input)
+
+    let rec GenerateSubCombinations(fix:string, rest:string, requiredGroups) = seq {
         
         let nextWildCard = rest.IndexOf('?')
 
         if nextWildCard = -1 then
-            if LineIsFullyValid(fix + rest) then 1 else 0
+            if LineIsFullyValid(rest, requiredGroups) then 1 else 0
         else
             let nonWildCards = if nextWildCard = 0 then "" else rest.Substring(0, nextWildCard)
             let left = fix + nonWildCards + "#"
+            let remainingString = rest.Substring(nextWildCard + 1)
+
+            let completedLeftGroupIndices = CompletedGroupsInLine left |> Seq.toArray
+            let completedLeftGroupSizes = completedLeftGroupIndices |> Array.map (fun (startIndex, endIndex) -> endIndex - startIndex)
+
+            if CompletedGroupsAreValid(completedLeftGroupSizes, requiredGroups) then
+                let remainingGroups = GetRemainingGroups(completedLeftGroupSizes, requiredGroups)
+                let (newFix, newRest) = SplitRemainingString(left + remainingString, completedLeftGroupIndices)
+                GenerateSubCombinations(newFix, newRest, remainingGroups) |> Seq.sum
+
             let right = fix + nonWildCards + "."
+            let completedRightGroupIndices = CompletedGroupsInLine right |> Seq.toArray
+            let completedRightGroupSizes = completedRightGroupIndices |> Array.map (fun (startIndex, endIndex) -> endIndex - startIndex)
 
-            if LineMightBeValid(left) then
-                GenerateSubCombinations(left, rest.Substring(nextWildCard + 1)) |> Seq.sum
-
-            if LineMightBeValid(right) then
-                GenerateSubCombinations(right, rest.Substring(nextWildCard + 1)) |> Seq.sum
+            if CompletedGroupsAreValid(completedRightGroupSizes, requiredGroups) then
+                let remainingGroups = GetRemainingGroups(completedRightGroupSizes, requiredGroups)
+                let (newFix, newRest) = SplitRemainingString(right + remainingString, completedLeftGroupIndices)
+                GenerateSubCombinations(newFix, newRest, remainingGroups) |> Seq.sum
     }
 
     let stopWatch = new Stopwatch()
     stopWatch.Start()
 
-    let combos = GenerateSubCombinations("", values) |> Seq.sum
+    let combos = GenerateSubCombinations("", values, requiredGroups) |> Seq.sum
 
     //combos |> Seq.iter (fun combo -> printfn "%s" combo)
 
