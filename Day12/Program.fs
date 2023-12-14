@@ -1,14 +1,11 @@
 ﻿open System
-open Utils
 open System.Collections.Generic
 open System.Diagnostics
 
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
-//lines <- ".?.?.?#????.??#?... 1,2".Replace("\r\n", "\n").Split('\n');
-
-(*
+(* // Test input
 lines <- "???.### 1,1,3
 .??..??...?##. 1,1,3
 ?#?#?#?#?#?#?#? 1,3,1,6
@@ -16,6 +13,8 @@ lines <- "???.### 1,1,3
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1".Replace("\r\n", "\n").Split('\n')
 *)
+
+(* // Old brute force algorithm used to solve part 1
 
 let LineIsValid(line:string) =
     let pieces = line.Split(' ')
@@ -31,7 +30,7 @@ let FillComboIntoPlaceholders(line:char array, indices: int array, combo: char a
     seq { 0..indices.Length - 1}
         |> Seq.iter (fun n -> copy[indices[n]] <- combo[n])
     new String(copy)
-
+ 
 let CalculatePossibilities(line) =
     printfn "%s" line
 
@@ -55,34 +54,24 @@ let CalculatePossibilities(line) =
     printfn "  Valid Combo Count: %A" validCombos
 
     validCombos
-
-(*
-// Part 1 Answer = 7857
-
-let part1Sum =
-    lines 
-    |> Seq.sumBy CalculatePossibilities
-
-printfn "[Part 1]: Sum of all valid possibilities = %d" part1Sum
 *)
-
-let Times5(list) = list @ list @ list @ list @ list
 
 let mutable cache = new Dictionary<string, int64>()
 
-let CalculatePossibilitiesPart2(line:string) =
+let CalculatePossibilities(line:string) =
 
     let pieces = line.Split(' ')
 
-    let values = pieces[0] // String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] } |> Seq.toList)
-    let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList //|> Times5
-    
-    //let values = String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] } |> Seq.toList)
-    //let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList |> Times5
+    let stringWithPlaceholders = pieces[0]
+    let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList
 
-    printfn "%s %s" values (String.Join(',', requiredGroups))
+    // Compares the string against the full initial requirement "requiredGroups" in the parent function
+    let LineIsFullyValid(line:string) =
+        let pieces = line.Split(' ')
+        let faultyLengths = pieces[0].Split('.', StringSplitOptions.RemoveEmptyEntries) |> Seq.map (fun v -> v.Length )
+        (Seq.compareWith Operators.compare faultyLengths requiredGroups) = 0 // the full sequence has to match
 
-    // Yields only completed groups
+    // Yields only completed groups in the given string as index pairs (startIndex, endIndex)
     let CompletedGroupsInLine(line:string) = seq {
         let mutable hashStartIndex = line.IndexOf('#')
 
@@ -96,15 +85,8 @@ let CalculatePossibilitiesPart2(line:string) =
                 hashStartIndex <- -1
         }
 
-    let LineIsFullyValid(line:string) =
-        let pieces = line.Split(' ')
-        let faultyLengths = pieces[0].Split('.', StringSplitOptions.RemoveEmptyEntries) |> Seq.map (fun v -> v.Length )
-
-        (Seq.compareWith Operators.compare faultyLengths requiredGroups) = 0
-
-    let CompletedGroupsAreValid(completedGroups, requiredGroups) =
-        Seq.forall2 (fun group requirement ->
-            requirement = group) completedGroups requiredGroups
+    let CompletedGroupsMightBeValid(completedGroups, requiredGroups) =
+        Seq.forall2 (fun group requirement -> requirement = group) completedGroups requiredGroups
 
     let GetRemainingGroups(completedGroups: int array, requiredGroups: int list) =
         if completedGroups.Length = 0 then
@@ -150,44 +132,59 @@ let CalculatePossibilitiesPart2(line:string) =
                     let completedGroupIndices = CompletedGroupsInLine left |> Seq.toArray
                     let completedGroupSizes = completedGroupIndices |> Array.map GetGroupSizeForIndices
 
-                    if CompletedGroupsAreValid(completedGroupSizes, requiredGroups) then
+                    if CompletedGroupsMightBeValid(completedGroupSizes, requiredGroups) then
                         let remainingGroups = GetRemainingGroups(completedGroupSizes, requiredGroups)
                         let (newCutoff, newFix) = CutOffCompletedGroups(left, completedGroupIndices)
 
-                        //if remainingGroups.Length = 0 && left = ".##" && remainingString = "?" then
-                        //    printfn "Gotcha"
-
                         if remainingGroups.Length = 0 && remainingString.IndexOf('#') <> -1 then
-                            0L // hashes and no groups to distribute, there's no way
-                        //else if remainingGroups.Length = 0 && remainingString.IndexOf('?') <> -1 then
-                        //    let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
-                        //    // There's only one possibility to distribute 0 groups in a string that has no question marks left
-                        //    if result <> 1L then
-                        //        failwith "Assumption failure"
-                        //    1L
+                            // hashes in the remaining strings and no more groups to distribute, there's no way
+                            0L
+                        else if remainingGroups.Length = 0 && remainingString.IndexOf('?') <> -1 then
+                            // No more groups to spare, check if what we have is valid
+                            // if it isn't valid then this doesn't count as solution
+                            // it it is valid then this counts as 1 solution since we can fill in dots only
+                            if LineIsFullyValid(cutoff + newCutoff + newFix) then 1L else 0L
                         else
+                            // Investigate further, but check the cache first
                             let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
+                            // Memoize this result, this cuts down computation time to manageable orders of magntitude
                             cache[GenerateKey(newFix + remainingString, remainingGroups)] <- result
                             result
     }
 
-    let stopWatch = new Stopwatch()
-    stopWatch.Start()
-
-    let combos = GenerateSubCombinations("", "", values, requiredGroups, 0) |> Seq.sum
-
-    //combos |> Seq.iter (fun combo -> printfn "%s" combo)
-
-    let validCombos = combos
-
-    stopWatch.Stop()
+    GenerateSubCombinations("", "", stringWithPlaceholders, requiredGroups, 0) |> Seq.sum
     
-    printfn " => Combo Count: %A in %f seconds" validCombos (stopWatch.Elapsed.TotalSeconds)
+printfn "Calculating Part 1..."
 
-    validCombos
+let stopWatch = new Stopwatch()
+stopWatch.Start()
 
-let part2sum =
+let part1Sum =
+    lines 
+    |> Seq.sumBy CalculatePossibilities
+
+stopWatch.Stop()
+
+// Part 1 Answer = 7857
+printfn "[Part 1]: Sum of all valid possibilities = %d (this took %f seconds)" part1Sum stopWatch.Elapsed.TotalSeconds
+printfn "[Part 1]: Correct answer was = 7857"
+
+stopWatch.Start()
+
+printfn "Calculating Part 2..."
+
+let part2Sum =
     lines
-    |> Seq.sumBy CalculatePossibilitiesPart2
+    |> Seq.map (fun line ->
+        let pieces = line.Split(' ')
+        let values = String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] })
+        let requiredGroups = String.Join(',', seq { pieces[1]; pieces[1]; pieces[1]; pieces[1]; pieces[1] })
+        values + " " + requiredGroups
+        )
+    |> Seq.sumBy CalculatePossibilities
 
-printfn "[Part 2]: Sum of all valid possibilities = %d" part2sum
+stopWatch.Stop()
+
+// Part 2 answer 28606137449920
+printfn "[Part 2]: Sum of all valid possibilities = %d (this took %f seconds)" part2Sum stopWatch.Elapsed.TotalSeconds
+printfn "[Part 2]: Correct answer was 28606137449920"
