@@ -57,7 +57,7 @@ let CalculatePossibilities(line) =
     validCombos
 
 (*
-Part 1 Answer = 7857
+// Part 1 Answer = 7857
 
 let part1Sum =
     lines 
@@ -74,8 +74,11 @@ let CalculatePossibilitiesPart2(line:string) =
 
     let pieces = line.Split(' ')
 
-    let values = String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] } |> Seq.toList)
-    let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList |> Times5
+    let values = pieces[0] // String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] } |> Seq.toList)
+    let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList //|> Times5
+    
+    //let values = String.Join('?', seq { pieces[0]; pieces[0]; pieces[0]; pieces[0]; pieces[0] } |> Seq.toList)
+    //let requiredGroups = pieces[1].Split(',') |> Seq.map int |> Seq.toList |> Times5
 
     printfn "%s %s" values (String.Join(',', requiredGroups))
 
@@ -113,10 +116,10 @@ let CalculatePossibilitiesPart2(line:string) =
 
             if mismatchingIndex.IsSome then requiredGroups[mismatchingIndex.Value ..] else []
 
-    let SplitRemainingString(fix: string, groupIndices: (int * int) array) =
+    let CutOffCompletedGroups(fix: string, groupIndices: (int * int) array) =
         if groupIndices.Length > 0 then
             let lastHashIndex = snd groupIndices[groupIndices.Length - 1]
-            (fix.Substring(0, lastHashIndex), fix.Substring(lastHashIndex)) // cut off the groups from the fixed string
+            (fix.Substring(0, lastHashIndex + 1), fix.Substring(lastHashIndex + 1)) // cut off the groups from the fixed string including the following dot
         else
             ("", fix)
 
@@ -144,15 +147,24 @@ let CalculatePossibilitiesPart2(line:string) =
                     let left = fix + nonWildCards + substitute
                     let remainingString = rest.Substring(nextWildCard + 1)
 
-                    let completedLeftGroupIndices = CompletedGroupsInLine left |> Seq.toArray
-                    let completedLeftGroupSizes = completedLeftGroupIndices |> Array.map GetGroupSizeForIndices
+                    let completedGroupIndices = CompletedGroupsInLine left |> Seq.toArray
+                    let completedGroupSizes = completedGroupIndices |> Array.map GetGroupSizeForIndices
 
-                    if CompletedGroupsAreValid(completedLeftGroupSizes, requiredGroups) then
-                        let remainingGroups = GetRemainingGroups(completedLeftGroupSizes, requiredGroups)
-                        let (newCutoff, newFix) = SplitRemainingString(left, completedLeftGroupIndices)
+                    if CompletedGroupsAreValid(completedGroupSizes, requiredGroups) then
+                        let remainingGroups = GetRemainingGroups(completedGroupSizes, requiredGroups)
+                        let (newCutoff, newFix) = CutOffCompletedGroups(left, completedGroupIndices)
 
-                        if remainingGroups.Length = 0 then
-                            if remainingString.IndexOf('#') <> -1 then 0L else 1L // only 1 possibility left provided there are no hashes in the remaining string
+                        //if remainingGroups.Length = 0 && left = ".##" && remainingString = "?" then
+                        //    printfn "Gotcha"
+
+                        if remainingGroups.Length = 0 && remainingString.IndexOf('#') <> -1 then
+                            0L // hashes and no groups to distribute, there's no way
+                        //else if remainingGroups.Length = 0 && remainingString.IndexOf('?') <> -1 then
+                        //    let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
+                        //    // There's only one possibility to distribute 0 groups in a string that has no question marks left
+                        //    if result <> 1L then
+                        //        failwith "Assumption failure"
+                        //    1L
                         else
                             let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
                             cache[GenerateKey(newFix + remainingString, remainingGroups)] <- result
