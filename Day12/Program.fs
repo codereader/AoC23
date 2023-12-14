@@ -6,6 +6,8 @@ open System.Diagnostics
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
+//lines <- ".?.?.?#????.??#?... 1,2".Replace("\r\n", "\n").Split('\n');
+
 (*
 lines <- "???.### 1,1,3
 .??..??...?##. 1,1,3
@@ -54,15 +56,19 @@ let CalculatePossibilities(line) =
 
     validCombos
 
+(*
+Part 1 Answer = 7857
+
 let part1Sum =
     lines 
     |> Seq.sumBy CalculatePossibilities
 
 printfn "[Part 1]: Sum of all valid possibilities = %d" part1Sum
+*)
 
 let Times5(list) = list @ list @ list @ list @ list
 
-let mutable cache = new Dictionary<int, int>()
+let mutable cache = new Dictionary<string, int64>()
 
 let CalculatePossibilitiesPart2(line:string) =
 
@@ -116,47 +122,41 @@ let CalculatePossibilitiesPart2(line:string) =
 
     let GetGroupSizeForIndices(startIndex, endIndex) = endIndex - startIndex
 
-    let ComputeHash(remainingString, remainingGroups) =
-        let stringHash = remainingString.GetHashCode()
-        let groupHash = String.Join(',', remainingGroups |> Seq.map string).GetHashCode()
-        (stringHash, groupHash).GetHashCode()
+    let GenerateKey(remainingString, remainingGroups) =
+        let groupKey = String.Join(',', remainingGroups |> Seq.map string)
+        remainingString + "|" + groupKey
 
-    let rec GenerateSubCombinations(cutoff: string, fix:string, rest:string, requiredGroups, level:int) = seq {
+    let rec GenerateSubCombinations(cutoff: string, fix:string, rest:string, requiredGroups: int list, level:int) = seq {
         
-        let found, existingResult = cache.TryGetValue(ComputeHash(rest, requiredGroups))
+        let cacheHit, cachedResult = cache.TryGetValue(GenerateKey(fix + rest, requiredGroups))
 
-        if found = true then
-            existingResult
+        if cacheHit && requiredGroups.Length > 0 then
+            cachedResult
         else
             let nextWildCard = rest.IndexOf('?')
 
             if nextWildCard = -1 then
-                if LineIsFullyValid(cutoff + fix + rest) then 1 else 0
+                if LineIsFullyValid(cutoff + fix + rest) then 1L else 0L
             else
                 let nonWildCards = if nextWildCard = 0 then "" else rest.Substring(0, nextWildCard)
-                let left = fix + nonWildCards + "#"
-                let remainingString = rest.Substring(nextWildCard + 1)
 
-                let completedLeftGroupIndices = CompletedGroupsInLine left |> Seq.toArray
-                let completedLeftGroupSizes = completedLeftGroupIndices |> Array.map GetGroupSizeForIndices
+                for substitute in seq { "#"; "." } do
+                    let left = fix + nonWildCards + substitute
+                    let remainingString = rest.Substring(nextWildCard + 1)
 
-                if CompletedGroupsAreValid(completedLeftGroupSizes, requiredGroups) then
-                    let remainingGroups = GetRemainingGroups(completedLeftGroupSizes, requiredGroups)
-                    let (newCutoff, newFix) = SplitRemainingString(left, completedLeftGroupIndices)
-                    let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
-                    cache[ComputeHash(remainingString, remainingGroups)] <- result
-                    result
+                    let completedLeftGroupIndices = CompletedGroupsInLine left |> Seq.toArray
+                    let completedLeftGroupSizes = completedLeftGroupIndices |> Array.map GetGroupSizeForIndices
 
-                let right = fix + nonWildCards + "."
-                let completedRightGroupIndices = CompletedGroupsInLine right |> Seq.toArray
-                let completedRightGroupSizes = completedRightGroupIndices |> Array.map GetGroupSizeForIndices
+                    if CompletedGroupsAreValid(completedLeftGroupSizes, requiredGroups) then
+                        let remainingGroups = GetRemainingGroups(completedLeftGroupSizes, requiredGroups)
+                        let (newCutoff, newFix) = SplitRemainingString(left, completedLeftGroupIndices)
 
-                if CompletedGroupsAreValid(completedRightGroupSizes, requiredGroups) then
-                    let remainingGroups = GetRemainingGroups(completedRightGroupSizes, requiredGroups)
-                    let (newCutoff, newFix) = SplitRemainingString(right, completedRightGroupIndices)
-                    let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
-                    cache[ComputeHash(remainingString, remainingGroups)] <- result
-                    result
+                        if remainingGroups.Length = 0 then
+                            if remainingString.IndexOf('#') <> -1 then 0L else 1L // only 1 possibility left provided there are no hashes in the remaining string
+                        else
+                            let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
+                            cache[GenerateKey(newFix + remainingString, remainingGroups)] <- result
+                            result
     }
 
     let stopWatch = new Stopwatch()
@@ -176,7 +176,6 @@ let CalculatePossibilitiesPart2(line:string) =
 
 let part2sum =
     lines
-    |> Seq.map (fun line -> CalculatePossibilitiesPart2 line)
-    |> Seq.sumBy (fun sum -> uint64 sum)
+    |> Seq.sumBy CalculatePossibilitiesPart2
 
 printfn "[Part 2]: Sum of all valid possibilities = %d" part2sum
