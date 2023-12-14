@@ -113,42 +113,48 @@ let CalculatePossibilities(line:string) =
 
     let rec GenerateSubCombinations(cutoff: string, fix:string, rest:string, requiredGroups: int list, level:int) = seq {
         
-        let cacheHit, cachedResult = cache.TryGetValue(GenerateKey(fix + rest, requiredGroups))
+        // Find the wildcard in the remaining string
+        let nextWildCard = rest.IndexOf('?')
 
-        if cacheHit && requiredGroups.Length > 0 then
-            cachedResult
+        if nextWildCard = -1 then
+            if LineIsFullyValid(cutoff + fix + rest) then 1L else 0L
         else
-            let nextWildCard = rest.IndexOf('?')
+            let nonWildCards = if nextWildCard = 0 then "" else rest.Substring(0, nextWildCard)
 
-            if nextWildCard = -1 then
-                if LineIsFullyValid(cutoff + fix + rest) then 1L else 0L
-            else
-                let nonWildCards = if nextWildCard = 0 then "" else rest.Substring(0, nextWildCard)
+            for substitute in seq { "#"; "." } do
+                // Grab everything up to the next placeholder and fill in a substitute character
+                let leftPart = fix + nonWildCards + substitute
+                let remainingString = rest.Substring(nextWildCard + 1)
 
-                for substitute in seq { "#"; "." } do
-                    let left = fix + nonWildCards + substitute
-                    let remainingString = rest.Substring(nextWildCard + 1)
+                // Check if this new left string contains any completed groups
+                let completedGroupIndices = CompletedGroupsInLine leftPart |> Seq.toArray
+                let completedGroupSizes = completedGroupIndices |> Array.map GetGroupSizeForIndices
 
-                    let completedGroupIndices = CompletedGroupsInLine left |> Seq.toArray
-                    let completedGroupSizes = completedGroupIndices |> Array.map GetGroupSizeForIndices
+                if CompletedGroupsMightBeValid(completedGroupSizes, requiredGroups) then
+                    // Let's see how many groups we have left
+                    let remainingGroups = GetRemainingGroups(completedGroupSizes, requiredGroups)
+                    // And remove the completed group strings from the left part
+                    let (newCutoff, newFix) = CutOffCompletedGroups(leftPart, completedGroupIndices)
 
-                    if CompletedGroupsMightBeValid(completedGroupSizes, requiredGroups) then
-                        let remainingGroups = GetRemainingGroups(completedGroupSizes, requiredGroups)
-                        let (newCutoff, newFix) = CutOffCompletedGroups(left, completedGroupIndices)
-
-                        if remainingGroups.Length = 0 && remainingString.IndexOf('#') <> -1 then
-                            // hashes in the remaining strings and no more groups to distribute, there's no way
-                            0L
-                        else if remainingGroups.Length = 0 && remainingString.IndexOf('?') <> -1 then
-                            // No more groups to spare, check if what we have is valid
-                            // if it isn't valid then this doesn't count as solution
-                            // it it is valid then this counts as 1 solution since we can fill in dots only
-                            if LineIsFullyValid(cutoff + newCutoff + newFix) then 1L else 0L
+                    if remainingGroups.Length = 0 && remainingString.IndexOf('#') <> -1 then
+                        // hashes in the remaining strings and no more groups to distribute, there's no way
+                        0L
+                    else if remainingGroups.Length = 0 && remainingString.IndexOf('?') <> -1 then
+                        // No more groups to spare, check if what we have is valid
+                        // if it isn't valid then this doesn't count as solution
+                        // it it is valid then this counts as 1 solution since we can fill in dots only
+                        if LineIsFullyValid(cutoff + newCutoff + newFix) then 1L else 0L
+                    else
+                        let cacheKey = GenerateKey(newFix + remainingString, remainingGroups)
+                        let cacheHit, cachedResult = cache.TryGetValue(cacheKey)
+                            
+                        if cacheHit && remainingGroups.Length > 0 then
+                            cachedResult
                         else
-                            // Investigate further, but check the cache first
+                            // Investigate further => enter recursion
                             let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
                             // Memoize this result, this cuts down computation time to manageable orders of magntitude
-                            cache[GenerateKey(newFix + remainingString, remainingGroups)] <- result
+                            cache[cacheKey] <- result
                             result
     }
 
