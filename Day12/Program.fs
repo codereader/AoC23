@@ -117,7 +117,7 @@ let CalculatePossibilities(line:string) =
         let nextWildCard = rest.IndexOf('?')
 
         if nextWildCard = -1 then
-            if LineIsFullyValid(cutoff + fix + rest) then 1L else 0L
+            if LineIsFullyValid(cutoff + fix + rest) then yield 1L else yield 0L
         else
             let nonWildCards = if nextWildCard = 0 then "" else rest.Substring(0, nextWildCard)
 
@@ -138,24 +138,24 @@ let CalculatePossibilities(line:string) =
 
                     if remainingGroups.Length = 0 && remainingString.IndexOf('#') <> -1 then
                         // hashes in the remaining strings and no more groups to distribute, there's no way
-                        0L
+                        yield 0L
                     else if remainingGroups.Length = 0 && remainingString.IndexOf('?') <> -1 then
                         // No more groups to spare, check if what we have is valid
                         // if it isn't valid then this doesn't count as solution
                         // it it is valid then this counts as 1 solution since we can fill in dots only
-                        if LineIsFullyValid(cutoff + newCutoff + newFix) then 1L else 0L
+                        if LineIsFullyValid(cutoff + newCutoff + newFix) then yield 1L else yield 0L
                     else
                         let cacheKey = GenerateKey(newFix + remainingString, remainingGroups)
                         let cacheHit, cachedResult = cache.TryGetValue(cacheKey)
                             
-                        if cacheHit && remainingGroups.Length > 0 then
-                            cachedResult
+                        if cacheHit && remainingGroups.Length > 0 then 
+                            yield cachedResult
                         else
                             // Investigate further => enter recursion
                             let result = GenerateSubCombinations(cutoff + newCutoff, newFix, remainingString, remainingGroups, level+1) |> Seq.sum
                             // Memoize this result, this cuts down computation time to manageable orders of magntitude
                             cache[cacheKey] <- result
-                            result
+                            yield result
     }
 
     GenerateSubCombinations("", "", stringWithPlaceholders, requiredGroups, 0) |> Seq.sum
