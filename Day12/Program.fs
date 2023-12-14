@@ -94,7 +94,7 @@ let CalculatePossibilitiesPart2(line:string) =
     let CompletedGroupsAreValid(completedGroups, requiredGroups) =
         Seq.forall2 (fun group requirement ->
             //printfn "Req: %d Group %d" requirement group
-            requirement >= group) completedGroups requiredGroups
+            requirement = group) completedGroups requiredGroups
 
     (*let LineMightBeValid(line:string, requiredGroups) =
         let groupsInLine = CompletedGroupsInLine line
@@ -110,19 +110,19 @@ let CalculatePossibilitiesPart2(line:string) =
 
             if mismatchingIndex.IsSome then requiredGroups[mismatchingIndex.Value ..] else []
 
-    let SplitRemainingString(input: string, groupIndices: (int * int) array) =
+    let SplitRemainingString(fix: string, rest:string, groupIndices: (int * int) array) =
         if groupIndices.Length > 0 then
             let lastHashIndex = snd groupIndices[groupIndices.Length - 1]
-            (input.Substring(0, lastHashIndex), input.Substring(lastHashIndex+1))
+            (fix.Substring(lastHashIndex), rest) // cut off the groups from the fixed string
         else
-            ("", input)
+            (fix, rest)
 
     let rec GenerateSubCombinations(fix:string, rest:string, requiredGroups) = seq {
         
         let nextWildCard = rest.IndexOf('?')
 
         if nextWildCard = -1 then
-            if LineIsFullyValid(rest, requiredGroups) then 1 else 0
+            if LineIsFullyValid(fix + rest, requiredGroups) then 1 else 0
         else
             let nonWildCards = if nextWildCard = 0 then "" else rest.Substring(0, nextWildCard)
             let left = fix + nonWildCards + "#"
@@ -133,7 +133,7 @@ let CalculatePossibilitiesPart2(line:string) =
 
             if CompletedGroupsAreValid(completedLeftGroupSizes, requiredGroups) then
                 let remainingGroups = GetRemainingGroups(completedLeftGroupSizes, requiredGroups)
-                let (newFix, newRest) = SplitRemainingString(left + remainingString, completedLeftGroupIndices)
+                let (newFix, newRest) = SplitRemainingString(left, remainingString, completedLeftGroupIndices)
                 GenerateSubCombinations(newFix, newRest, remainingGroups) |> Seq.sum
 
             let right = fix + nonWildCards + "."
@@ -142,7 +142,7 @@ let CalculatePossibilitiesPart2(line:string) =
 
             if CompletedGroupsAreValid(completedRightGroupSizes, requiredGroups) then
                 let remainingGroups = GetRemainingGroups(completedRightGroupSizes, requiredGroups)
-                let (newFix, newRest) = SplitRemainingString(right + remainingString, completedLeftGroupIndices)
+                let (newFix, newRest) = SplitRemainingString(right, remainingString, completedRightGroupIndices)
                 GenerateSubCombinations(newFix, newRest, remainingGroups) |> Seq.sum
     }
 
