@@ -56,7 +56,6 @@ let CalculatePossibilities(line) =
     validCombos
 *)
 
-let mutable cache = new Dictionary<string, int64>()
 
 let CalculatePossibilities(line:string) =
 
@@ -107,9 +106,11 @@ let CalculatePossibilities(line:string) =
 
     let GetGroupSizeForIndices(startIndex, endIndex) = endIndex - startIndex
 
-    let GenerateKey(remainingString, remainingGroups) =
-        let groupKey = String.Join(',', remainingGroups |> Seq.map string)
-        remainingString + "|" + groupKey
+    let mutable cache = new Dictionary<string, int64>()
+
+    let GenerateCacheKey(remainingString, remainingGroups: int list) =
+        // Cache is local for every input line of the puzzle, it's enough to have the remaining group length encoded into it
+        string remainingGroups.Length + remainingString
 
     let rec GenerateSubCombinations(cutoff: string, fix:string, rest:string, requiredGroups: int list, level:int) = seq {
         
@@ -145,7 +146,7 @@ let CalculatePossibilities(line:string) =
                         // it it is valid then this counts as 1 solution since we can fill in dots only
                         if LineIsFullyValid(cutoff + newCutoff + newFix) then yield 1L else yield 0L
                     else
-                        let cacheKey = GenerateKey(newFix + remainingString, remainingGroups)
+                        let cacheKey = GenerateCacheKey(newFix + remainingString, remainingGroups)
                         let cacheHit, cachedResult = cache.TryGetValue(cacheKey)
                             
                         if cacheHit && remainingGroups.Length > 0 then 
