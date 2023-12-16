@@ -3,7 +3,7 @@
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
-(*
+
 // Test input
 lines <- "O....#....
 O.OO#....#
@@ -15,18 +15,19 @@ O.#..O.#.#
 .......O..
 #....###..
 #OO..#....".Replace("\r\n", "\n").Split('\n')
-*)
 
-let TransposeLines(lines: string array) =
-    seq { 0 .. lines[0].Length - 1 }
-    |> Seq.map (fun col -> 
-        let column =
-            seq { 0 .. lines.Length - 1 }
-            |> Seq.map (fun row -> lines[row][col])
-            |> Seq.toArray
-        (new string(column)))
+let TurnPlatformRight(lines: string array) =
+    let N = lines.Length
+    seq {
+        for y in { 0..N-1 } do
+            let newLine = Array.zeroCreate<char>(N)
+            for x in { 0..N-1 } do
+                newLine[x] <- lines[N-1-x][y]
+            yield new String(newLine)
+    }
+    |> Seq.toArray
 
-let input = TransposeLines(lines) |> Seq.toArray
+let input = TurnPlatformRight(TurnPlatformRight(TurnPlatformRight(lines)))
 
 let TiltLeft(row: string) =
     let chars = row.ToCharArray()
