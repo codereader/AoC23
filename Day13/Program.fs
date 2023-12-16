@@ -1,6 +1,4 @@
 ﻿open System
-open System.Collections.Generic
-open System.Diagnostics
 
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
@@ -64,7 +62,7 @@ let CalculateRowHashes(block) =
     |> Seq.map RowToInt
     |> Seq.toArray
 
-let Columns(block: string array) =
+let ColumnsofBlock(block: string array) =
     seq { 0 .. block[0].Length - 1 }
     |> Seq.map (fun col -> 
         let column =
@@ -74,32 +72,9 @@ let Columns(block: string array) =
         (new String(column)))
 
 let CalculateColumnHashes(block:string array) =
-    Columns(block)
+    ColumnsofBlock(block)
         |> Seq.map RowToInt
         |> Seq.toArray
-
-let CalculateBlockSumPart1(block: string array) =
-
-    let ValidateMirrorIndex(candidate: int, hashes: int array) =
-        let forward = seq { candidate+1 .. hashes.Length-1 }
-        let backward = seq { candidate .. -1 .. 0 }
-        Seq.forall2 (fun idx1 idx2 -> hashes[idx1] = hashes[idx2]) forward backward
-
-    let FindMirrorIndices(hashes: int array) =
-        seq { 0 .. hashes.Length - 2 } |> Seq.filter (fun i -> hashes[i] = hashes[i+1] && ValidateMirrorIndex(i, hashes))
-
-    let rowIndices = FindMirrorIndices(CalculateRowHashes(block)) |> Seq.toArray
-
-    if rowIndices.Length > 0 then
-        (rowIndices[0] + 1) * 100
-    else
-        let colIndices = FindMirrorIndices(CalculateColumnHashes(block))
-        (Seq.head colIndices) + 1
-
-let blockSumPart1 = blocks |> Seq.map CalculateBlockSumPart1 |> Seq.sum
-
-// Valid answer: 33047
-printfn "[Part 1]: Block sum = %d" blockSumPart1
 
 let ClassifyMirrorIndex(candidate: int, hashes: int array) =
     let forward = seq { candidate+1 .. hashes.Length-1 }
@@ -151,21 +126,16 @@ let CalculateBlockSumPart2(block: string array) =
     let blockWidth = block[0].Length
     let blockHeight = block.Length
 
-    printfn "Original Block has value %A" originalValue
-    PrintStringBlock block
+    //printfn "Original Block has value %A" originalValue
+    //PrintStringBlock block
 
     let changedBlockValues = seq {
         for y in seq { 0 .. blockHeight-1 } do
             for x in seq { 0 .. blockWidth-1 } do
-
                 let alternativeBlock = FlipCharInBlock(block, x, y)
-                //printf "Changed Block at %d,%d " x y
-                //if x = 7 && y = 5 then
-                    //PrintStringBlock alternativeBlock
                 let altRowHashes = CalculateRowHashes(alternativeBlock)
                 let altColumnHashes = CalculateColumnHashes(alternativeBlock)
-                let (altRow, altCol, altValue) = TryCalculateBlockValue(altRowHashes, altColumnHashes, origRow, origCol)
-                //printfn "has value %A" altValue
+                let (_, _, altValue) = TryCalculateBlockValue(altRowHashes, altColumnHashes, origRow, origCol)
 
                 if altValue.IsSome then
                     yield altValue.Value
@@ -176,12 +146,27 @@ let CalculateBlockSumPart2(block: string array) =
         |> Seq.distinct
         |> Seq.toArray
 
-    printfn "Alternative Blocks found with values %s" (String.Join("\n", uniqueValues))
+    //printfn "Alternative Blocks found with values %s" (String.Join("\n", uniqueValues))
     uniqueValues[0]
+
+let blockSumPart1 =
+    blocks
+    |> Seq.map (fun block ->
+        let rowHashes = CalculateRowHashes(block)
+        let columnHashes = CalculateColumnHashes(block)
+
+        let (_, _, value) = TryCalculateBlockValue(rowHashes, columnHashes, None, None)
+        value
+        )
+    |> Seq.sumBy (fun i -> i.Value)
+
+// Valid answer: 33047
+printfn "[Part 1]: Block sum = %d" blockSumPart1
 
 let blockSumPart2 =
     blocks
     |> Seq.map CalculateBlockSumPart2
     |> Seq.sum
 
+// Valid answer: 28806
 printfn "[Part 2]: Block sum = %d" blockSumPart2
