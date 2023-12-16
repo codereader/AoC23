@@ -29,9 +29,10 @@ let TurnPlatformRight(lines: string array) =
     }
     |> Seq.toArray
 
-// Turn left 90 degrees, then let them roll
-let input = TurnPlatformRight(TurnPlatformRight(TurnPlatformRight(lines)))
+let TurnPlatformLeft(lines) = TurnPlatformRight(TurnPlatformRight(TurnPlatformRight(lines)))
 
+// Tilt the platform to let the stones roll left
+// We're tilting left to make use of the left-bound FindIndex and tryFindIndex and new String() methods
 let TiltLeft(row: string) =
     let chars = row.ToCharArray()
     for idx in { 0..chars.Length-2 } do
@@ -47,30 +48,22 @@ let TiltPlatform(input:string array) =
     |> Seq.map (fun idx -> TiltLeft input[idx])
     |> Seq.toArray
 
-// Consider the weight of all the rocks (index is 1-based!)
-let CalculateWeightPart1(line:string) =
-    seq { 0..line.Length-1 }
-        |> Seq.filter (fun index -> line[index] = 'O')
-        |> Seq.map (fun idx -> line.Length - idx)
-        |> Seq.sum
-
 let GetNumberOfStones(line:string) =
     line |> Seq.filter (fun ch -> ch = 'O') |> Seq.length
 
+// Consider the weight of all the rocks (first row gets weight N per stone)
 let CalculatePlatformWeight(platform: string array) =
     platform
     |> Seq.mapi (fun i line -> (GetNumberOfStones line)*(platform.Length - i))
     |> Seq.sum
 
-let part1Sum = 
-    TiltPlatform(input)
-    |> Seq.map CalculateWeightPart1
-    |> Seq.sum
+// Turn left 90 degrees, then let them roll, roll back and calculate the weight
+let part1Sum = lines |> TurnPlatformLeft |> TiltPlatform |> TurnPlatformRight |> CalculatePlatformWeight
 
 // Correct answer is 107430
 printfn "[Part 1]: Total Weight after tilting north = %d" part1Sum
 
-// Part 2 Run 1 billion cycles
+// Part 2 Run 1 billion NWSE tilt cycles
 
 let CalculateSituationHash(platform:string array) =
     let mutable hash = 23
@@ -82,63 +75,59 @@ let CalculateSituationHash(platform:string array) =
 let PrintPlatform(input) =
     input |> Seq.iter (fun line -> printfn "%s" line)
 
-// Tilt North, Wast, South, East
-
+// Tilt North, Wast, South, East, return the new result
 let RunCycle(input) =
-    // Start north
-    let mutable platform = TurnPlatformRight(TurnPlatformRight(TurnPlatformRight(input)))
+    // Start tilting north, so turn the table to the left to boot
+    let mutable platform = TurnPlatformLeft(input)
     platform <- TiltPlatform(platform) // North
 
-    platform <- TurnPlatformRight(platform)
+    platform <- TurnPlatformRight(platform) // turn right to tilt West
+    platform <- TiltPlatform(platform)
 
-    //printfn "-----\nAfter N\n-----"
-    //PrintPlatform platform
-    platform <- TiltPlatform(platform) // West
+    platform <- TurnPlatformRight(platform) // turn right to tilt South
+    platform <- TiltPlatform(platform)
 
-    //printfn "-----\nAfter W\n-----"
-    //PrintPlatform platform
+    platform <- TurnPlatformRight(platform) // turn right to tilt East
+    platform <- TiltPlatform(platform)
 
-    platform <- TurnPlatformRight(platform)
-    platform <- TiltPlatform(platform) // South
+    TurnPlatformRight(TurnPlatformRight(platform)) // turn 180 deg back into starting orientation
 
-    //printfn "-----\nAfter S\n-----"
-    //PrintPlatform (TurnPlatformRight(TurnPlatformRight(TurnPlatformRight(platform))))
-
-    platform <- TurnPlatformRight(platform)
-    platform <- TiltPlatform(platform) // East
-    TurnPlatformRight(TurnPlatformRight(platform)) // turn into starting orientation
-
+// Keep track of all situations we encounter until we complete the first cycle
 let mutable cycleHashes = new Dictionary<int, int>()
-let mutable situations = new List<string[]>()
+let mutable situations = new List<string array>()
 
-let mutable platform = lines
+let mutable platform = lines // start from the initial puzzle input
 let mutable cycleCount = 0
 situations.Add(platform)
 
 while cycleCount >= 0 do
+    // Run a cycle then store the result
     platform <- RunCycle platform
     cycleCount <- cycleCount + 1
-    let hash = CalculateSituationHash platform
-    //printfn "-----\nAfter %d cycles, Hash = %d\n-----" cycleCount hash
+    situations.Add(platform)
 
-    let hashCollision, prevCycleCount = cycleHashes.TryGetValue hash
-    if hashCollision then
+    // Get the hash to see if we encountered this situation before
+    let hash = CalculateSituationHash platform
+
+    let isKnownSituation, prevCycleCount = cycleHashes.TryGetValue hash
+
+    if isKnownSituation then
         printfn "Got a repeating pattern: First occurrence in cycle %d, now in %d" prevCycleCount cycleCount
         let offset = prevCycleCount
         let period = cycleCount - prevCycleCount
 
+        // Map the 1B cycles into our first cycle range
         let offsetWithinPeriod = (1_000_000_000 - offset) % period
 
-        // Look up this situation, we've had it before
+        // Look up this situation, we've recorded it before
         let situationIndex = offset + offsetWithinPeriod
         let platformAfter1BillionCycles = situations[situationIndex]
+
+        // Correct answer is 96317
         printfn "[Part 2]: Total Weight after 1B cycles = %d" (CalculatePlatformWeight(platformAfter1BillionCycles))
         cycleCount <- -1 // break
-        //cycleHashes.Clear()
     else
         cycleHashes[hash] <- cycleCount
-        situations.Add(platform)
-        //printfn "Weight after %d cycles = %d" cycleCount (CalculatePlatformWeight platform)
-       
+
     //if cycleCount >= 0 then
     //    PrintPlatform(situations[cycleCount])
