@@ -25,7 +25,7 @@ let Up = Vector2(0, -1)
 let Down = Vector2(0, 1)
 
 type Beam = { Position: Vector2; Direction: Vector2 }
-type Cell = { mutable NumLightBeams: int; CellType: char; mutable Beams: Beam list }
+type Cell = { mutable IsIlluminated: bool; CellType: char; mutable BeamDirections: HashSet<Vector2> }
 
 let gridSize = Vector2(lines[0].Length, lines.Length)
 
@@ -33,14 +33,14 @@ let GenerateStartingGrid() =
     seq { 0..lines.Length-1 } 
     |> Seq.collect (fun y -> seq {
             for x in 0..lines[y].Length-1 do
-                yield (Vector2(x,y), { NumLightBeams = 0; CellType = lines[y][x]; Beams = list<Beam>.Empty })
+                yield (Vector2(x,y), { IsIlluminated = false; CellType = lines[y][x]; BeamDirections = new HashSet<Vector2>() })
         })
     |> dict
 
 let PositionIsWithinGrid(position: Vector2) = position.X >= 0 && position.X < gridSize.X && position.Y >= 0 && position.Y < gridSize.Y
 
 let PositionHasEquivalentBeam(grid: IDictionary<Vector2, Cell>, position, direction) =
-    grid[position].Beams |> Seq.exists (fun beam -> beam.Direction = direction)
+    grid[position].BeamDirections.Contains(direction)
 
 type Interaction =
     | Proceed = 0
@@ -54,25 +54,21 @@ type Interaction =
 
 let GetInteraction(grid: IDictionary<Vector2, Cell>, position, direction) =
     if PositionIsWithinGrid position then
-
-        if PositionHasEquivalentBeam(grid, position, direction) then
-            Interaction.Stop
-        else
-            match grid[position].CellType with
-            | '.' -> Interaction.Proceed
-            | '-' when direction = Left || direction = Right -> Interaction.Proceed
-            | '|' when direction = Up || direction = Down -> Interaction.Proceed
-            | '\\' when direction = Right -> Interaction.DeflectDown
-            | '/' when direction = Left -> Interaction.DeflectDown
-            | '/' when direction = Right -> Interaction.DeflectUp
-            | '/' when direction = Up -> Interaction.DeflectRight
-            | '/' when direction = Down -> Interaction.DeflectLeft
-            | '\\' when direction = Left -> Interaction.DeflectUp
-            | '\\' when direction = Down -> Interaction.DeflectRight
-            | '\\' when direction = Up -> Interaction.DeflectLeft
-            | '|' when direction = Left || direction = Right -> Interaction.SplitUpDown
-            | '-' when direction = Up || direction = Down -> Interaction.SplitLeftRight
-            | _ -> failwith "Unknown interaction type"
+        match grid[position].CellType with
+        | '.' -> if PositionHasEquivalentBeam(grid, position, direction) then Interaction.Stop else Interaction.Proceed
+        | '-' when direction = Left || direction = Right -> Interaction.Proceed
+        | '|' when direction = Up || direction = Down -> Interaction.Proceed
+        | '\\' when direction = Right -> Interaction.DeflectDown
+        | '/' when direction = Left -> Interaction.DeflectDown
+        | '/' when direction = Right -> Interaction.DeflectUp
+        | '/' when direction = Up -> Interaction.DeflectRight
+        | '/' when direction = Down -> Interaction.DeflectLeft
+        | '\\' when direction = Left -> Interaction.DeflectUp
+        | '\\' when direction = Down -> Interaction.DeflectRight
+        | '\\' when direction = Up -> Interaction.DeflectLeft
+        | '|' when direction = Left || direction = Right -> Interaction.SplitUpDown
+        | '-' when direction = Up || direction = Down -> Interaction.SplitLeftRight
+        | _ -> failwith "Unknown interaction type"
     else
         Interaction.Stop // outside grid
 
@@ -93,24 +89,23 @@ let IlluminateCells(beam, endPoint, grid: IDictionary<Vector2, Cell>) =
     let mutable current = beam.Position + beam.Direction
 
     while current <> endPoint do
-        if PositionHasEquivalentBeam(grid, current, beam.Direction) = false then
-            grid[current].Beams <- grid[current].Beams @ [beam]
-            grid[current].NumLightBeams <- grid[current].NumLightBeams + 1
+        ignore (grid[current].BeamDirections.Add(beam.Direction))
+        grid[current].IsIlluminated <- true
         current <- current + beam.Direction
 
     // Illuminate the reached position if it is still within the grid
-    if PositionIsWithinGrid current && PositionHasEquivalentBeam(grid, current, beam.Direction) = false then
-        grid[current].NumLightBeams <- grid[current].NumLightBeams + 1
+    if PositionIsWithinGrid current then
+        grid[current].IsIlluminated <- true
 
 let Cap(value) = if value > 9 then 'A' else (if value = 0 then '.' else value.ToString()[0])
 
 let PrintCell(cell) = 
-    if cell.NumLightBeams > 0 then
+    if cell.IsIlluminated then
         Console.ForegroundColor <- ConsoleColor.White
     else
         Console.ForegroundColor <- ConsoleColor.DarkGray
         
-    let ch = (if cell.CellType = '.' then Cap(cell.NumLightBeams) else cell.CellType)
+    let ch = (if cell.CellType = '.' then Cap(cell.BeamDirections.Count) else cell.CellType)
     printf "%c" ch
 
 let PrintGrid(grid: IDictionary<Vector2, Cell>) = 
@@ -155,10 +150,13 @@ let CalculateIlluminationForStartingPosition(grid: IDictionary<Vector2, Cell>, s
             unprocessedLightBeams.Push({ Position = fst target; Direction = Left })
         | _ -> ()
 
+    //PrintGrid grid
+
     grid
-        |> Seq.filter (fun cell -> cell.Value.NumLightBeams > 0)
+        |> Seq.filter (fun cell -> cell.Value.IsIlluminated)
         |> Seq.length
 
+// Correct answer is 7210
 let illuminatedCellsPart1 = CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(-1, 0), Right)
 printfn "[Part 1]: Illuminated Cells = %d" illuminatedCellsPart1
 
@@ -172,4 +170,5 @@ let illumnations = seq {
             yield CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(x, gridSize.Y), Up)
     }
 
+// Correct answer is 7673
 printfn "[Part 2]: Maximum Illumnation = %d" (illumnations |> Seq.max)
