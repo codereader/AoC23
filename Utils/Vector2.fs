@@ -26,6 +26,10 @@ type Vector2(x,y) =
     override this.ToString() =
         sprintf "[%d %d]" this.X this.Y
 
+    static member Up = Vector2(0,-1)
+    static member Right = Vector2(1,0)
+    static member Down = Vector2(0,1)
+    static member Left = Vector2(-1,0)
 
 type Vector2f(x: float,y: float) =
     interface IComparable with

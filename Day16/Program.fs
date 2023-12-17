@@ -19,10 +19,10 @@ lines <- @".|...\....
 ..//.|....".Replace("\r\n", "\n").Split('\n')
 *)
 
-let Left = Vector2(-1, 0)
-let Right = Vector2(1, 0)
-let Up = Vector2(0, -1)
-let Down = Vector2(0, 1)
+let Left = Vector2.Left
+let Right = Vector2.Right
+let Up = Vector2.Up
+let Down = Vector2.Down
 
 type Beam = { Position: Vector2; Direction: Vector2 }
 type Cell = { mutable IsIlluminated: bool; CellType: char; mutable BeamDirections: HashSet<Vector2> }
