@@ -29,7 +29,7 @@ type Cell = { mutable NumLightBeams: int; CellType: char; mutable Beams: Beam li
 
 let gridSize = Vector2(lines[0].Length, lines.Length)
 
-let mutable grid =
+let GenerateStartingGrid() =
     seq { 0..lines.Length-1 } 
     |> Seq.collect (fun y -> seq {
             for x in 0..lines[y].Length-1 do
@@ -126,38 +126,50 @@ let PrintGrid(grid: IDictionary<Vector2, Cell>) =
     Console.ForegroundColor <- oldColour
     printfn "-----"
 
-let mutable unprocessedLightBeams = new Stack<Beam>()
+let CalculateIlluminationForStartingPosition(grid: IDictionary<Vector2, Cell>, startPosition, startDirection) =
+    let mutable unprocessedLightBeams = new Stack<Beam>()
 
-unprocessedLightBeams.Push({ Position = Vector2(-1, 0); Direction = Vector2(1,0) })
-grid[Vector2(0,0)].NumLightBeams <- grid[Vector2(0,0)].NumLightBeams + 1
-
-//PrintGrid grid
-
-while unprocessedLightBeams.Count > 0 do
-    let beam = unprocessedLightBeams.Pop()
-
-    let target = MoveForward(beam, grid)
-
-    IlluminateCells(beam, fst target, grid)
+    unprocessedLightBeams.Push({ Position = startPosition; Direction = startDirection })
 
     //PrintGrid grid
 
-    match snd target with
-    | Interaction.DeflectUp -> unprocessedLightBeams.Push({ Position = fst target; Direction = Up })
-    | Interaction.DeflectDown -> unprocessedLightBeams.Push({ Position = fst target; Direction = Down })
-    | Interaction.DeflectRight -> unprocessedLightBeams.Push({ Position = fst target; Direction = Right })
-    | Interaction.DeflectLeft -> unprocessedLightBeams.Push({ Position = fst target; Direction = Left })
-    | Interaction.SplitUpDown ->
-        unprocessedLightBeams.Push({ Position = fst target; Direction = Up })
-        unprocessedLightBeams.Push({ Position = fst target; Direction = Down })
-    | Interaction.SplitLeftRight ->
-        unprocessedLightBeams.Push({ Position = fst target; Direction = Right })
-        unprocessedLightBeams.Push({ Position = fst target; Direction = Left })
-    | _ -> ()
+    while unprocessedLightBeams.Count > 0 do
+        let beam = unprocessedLightBeams.Pop()
 
-let illuminatedCells = 
+        let target = MoveForward(beam, grid)
+
+        IlluminateCells(beam, fst target, grid)
+
+        //PrintGrid grid
+
+        match snd target with
+        | Interaction.DeflectUp -> unprocessedLightBeams.Push({ Position = fst target; Direction = Up })
+        | Interaction.DeflectDown -> unprocessedLightBeams.Push({ Position = fst target; Direction = Down })
+        | Interaction.DeflectRight -> unprocessedLightBeams.Push({ Position = fst target; Direction = Right })
+        | Interaction.DeflectLeft -> unprocessedLightBeams.Push({ Position = fst target; Direction = Left })
+        | Interaction.SplitUpDown ->
+            unprocessedLightBeams.Push({ Position = fst target; Direction = Up })
+            unprocessedLightBeams.Push({ Position = fst target; Direction = Down })
+        | Interaction.SplitLeftRight ->
+            unprocessedLightBeams.Push({ Position = fst target; Direction = Right })
+            unprocessedLightBeams.Push({ Position = fst target; Direction = Left })
+        | _ -> ()
+
     grid
-    |> Seq.filter (fun cell -> cell.Value.NumLightBeams > 0)
-    |> Seq.length
+        |> Seq.filter (fun cell -> cell.Value.NumLightBeams > 0)
+        |> Seq.length
 
-printfn "[Part 1]: Illuminated Cells = %d" illuminatedCells
+let illuminatedCellsPart1 = CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(-1, 0), Right)
+printfn "[Part 1]: Illuminated Cells = %d" illuminatedCellsPart1
+
+let illumnations = seq {
+        for y in { 0..gridSize.Y-1 } do
+            yield CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(-1, y), Right)
+            yield CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(gridSize.X, y), Left)
+
+        for x in { 0..gridSize.X-1 } do
+            yield CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(x, -1), Down)
+            yield CalculateIlluminationForStartingPosition(GenerateStartingGrid(), Vector2(x, gridSize.Y), Up)
+    }
+
+printfn "[Part 2]: Maximum Illumnation = %d" (illumnations |> Seq.max)
