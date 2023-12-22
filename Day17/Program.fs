@@ -104,15 +104,7 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>, heatLoss: int)
     member this.Contains(pos: Vector2) = steps.Contains(pos)
 
     member this.CanMoveForward = straightMoves < 3
-#if false
-        let pathLength = this.Steps.Count
-        if pathLength < 4 then
-            true
-        else
-            let distance = this.Steps[pathLength - 4] - this.Steps[pathLength - 1]
-            if Math.Abs(distance.X) = 3 || Math.Abs(distance.Y) = 3 then false else true
-#endif
-
+    
     member this.HeatLoss = heatLoss
 
     new(grid, startPosition:Vector2) =
@@ -215,14 +207,6 @@ while pathsToInvestigate.Count > 0 do
 
                         if incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] > possibleHeatLoss then
                             incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] <- possibleHeatLoss
-#if false
-                    let possiblePath = path.Append(position)
-                    let incomingDirection = targetCell.IncomingDirections[possiblePath.LastDirection]
-                    let remainingStepsForThisPath = 3 - possiblePath.StraightMoves
-                    if incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] > possibleHeatLoss then
-                        incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] <- possibleHeatLoss
-                        pathsToInvestigate.Enqueue(possiblePath)
-#endif
             )
 
 stopwatch.Stop()
