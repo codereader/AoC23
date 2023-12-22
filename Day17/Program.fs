@@ -22,6 +22,7 @@ lines <- @"2413432311323
 4322674655533".Replace("\r\n", "\n").Split('\n')
 *)
 
+
 type DirectionInfo = {
     mutable HeatLossByRemainingStraightMoves: List<int>
 }
@@ -61,40 +62,48 @@ let PositionIsWithinGrid(position: Vector2) = position.X >= 0 && position.X < gr
 let grid = GenerateGrid()
 
 type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>, heatLoss: int) =
-    let _heatLoss = heatLoss
-
-    member this.Grid = grid
-    member this.Steps = steps
-    member this.Position = this.Steps[this.Steps.Count - 1]
-    member this.LastDirection = 
-        if this.Steps.Count > 1 then
-            this.Position - this.Steps[this.Steps.Count - 2]
+    let Grid = grid
+    let Steps = steps
+    let heatLoss = heatLoss
+    let position = steps[steps.Count - 1]
+    let lastDirection = 
+        if steps.Count > 1 then
+            position - steps[steps.Count - 2]
         else
             Vector2.Right
 
-    member this.Right = this.Position + this.RightDirection
-    member this.Left = this.Position - this.RightDirection
-    member this.Forward = this.Position + this.LastDirection
-
-    member this.RightDirection =
-        let lastDirection = this.LastDirection
+    let rightDirection =
         Vector2(lastDirection.Y, lastDirection.X * -1)
 
-    member this.Contains(pos: Vector2) = 
-        this.Steps.Contains(pos)
+    let leftDirection =
+        Vector2(-rightDirection.X, -rightDirection.Y)
 
-    member this.StraightMoves =
+    let right = position + rightDirection
+    let left = position + leftDirection
+    let forward = position + lastDirection
+    let straightMoves =
         let mutable straightMoves = 1
-        let mutable currentPos = this.Steps.Count - straightMoves - 1
-        let lastDirection = this.LastDirection
+        let mutable currentPos = Steps.Count - straightMoves - 1
+        let lastDirection = lastDirection
         while currentPos - 1 >= 0 && 
-              this.Steps[currentPos] - this.Steps[currentPos - 1] = lastDirection do
+              Steps[currentPos] - Steps[currentPos - 1] = lastDirection do
             straightMoves <- straightMoves + 1
             currentPos <- currentPos - 1
         straightMoves
 
-    member this.CanMoveForward =
-        this.StraightMoves < 3
+    member this.Position = position
+    member this.StraightMoves = straightMoves
+    
+    member this.Left = left
+    member this.Right = right
+    member this.Forward = forward
+    member this.LeftDirection = leftDirection
+    member this.RightDirection = rightDirection
+    member this.ForwardDirection = lastDirection
+
+    member this.Contains(pos: Vector2) = steps.Contains(pos)
+
+    member this.CanMoveForward = straightMoves < 3
 #if false
         let pathLength = this.Steps.Count
         if pathLength < 4 then
@@ -104,7 +113,7 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>, heatLoss: int)
             if Math.Abs(distance.X) = 3 || Math.Abs(distance.Y) = 3 then false else true
 #endif
 
-    member this.HeatLoss = _heatLoss
+    member this.HeatLoss = heatLoss
 
     new(grid, startPosition:Vector2) =
         let steps = new List<Vector2>()
@@ -112,30 +121,30 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>, heatLoss: int)
         Path(grid, steps, 0)
 
     member this.Append(position: Vector2) =
-        let steps = new List<Vector2>(this.Steps)
+        let steps = new List<Vector2>(Steps)
         steps.Add(position)
         Path(grid, steps, this.HeatLoss + grid[position].CostToEnter)
 
     override this.ToString() =
-        sprintf "%s" (String.Join(" > ", this.Steps |> Seq.map(fun step -> step.ToString())))
+        sprintf "%s" (String.Join(" > ", steps |> Seq.map(fun step -> step.ToString())))
 
-let PrintPath(grid: IDictionary<Vector2, Cell>, path: Path) = 
-    let oldColour = Console.ForegroundColor
+    member this.Print() = 
+        let oldColour = Console.ForegroundColor
 
-    for y in { 0..gridSize.Y-1 } do
-        for x in { 0..gridSize.X-1 } do
-            let pos = Vector2(x,y)
-            let cell = grid[pos]
-            if path.Steps |> Seq.exists (fun step -> step = pos) then
-                Console.ForegroundColor <- ConsoleColor.White
-            else
-                Console.ForegroundColor <- ConsoleColor.DarkGray
+        for y in { 0..gridSize.Y-1 } do
+            for x in { 0..gridSize.X-1 } do
+                let pos = Vector2(x,y)
+                let cell = grid[pos]
+                if steps |> Seq.exists (fun step -> step = pos) then
+                    Console.ForegroundColor <- ConsoleColor.White
+                else
+                    Console.ForegroundColor <- ConsoleColor.DarkGray
 
-            printf "%d" cell.CostToEnter
-        printfn ""
+                printf "%d" cell.CostToEnter
+            printfn ""
 
-    Console.ForegroundColor <- oldColour
-    printfn "-----"
+        Console.ForegroundColor <- oldColour
+        printfn "-----"
 
 let mutable pathsToInvestigate = new Queue<Path>()
 let startPosition = Vector2(0,0)
@@ -144,7 +153,7 @@ let endPosition = Vector2(gridSize.X - 1, gridSize.Y - 1)
 pathsToInvestigate.Enqueue(Path(grid, startPosition))
 
 Console.SetCursorPosition(0,0)
-PrintPath(grid, pathsToInvestigate.Peek())
+pathsToInvestigate.Peek().Print()
 
 let stopwatch = new Stopwatch()
 
@@ -163,17 +172,17 @@ while pathsToInvestigate.Count > 0 do
 
         let possiblePositions =
             seq {
-                yield path.Left
-                yield path.Right
+                yield (1, path.Left, path.LeftDirection)
+                yield (1, path.Right, path.RightDirection)
 
                 if path.CanMoveForward then
-                    yield path.Forward
+                    yield (path.StraightMoves + 1, path.Forward, path.ForwardDirection)
             } 
-            |> Seq.filter (fun p -> PositionIsWithinGrid(p) && path.Contains(p) = false)
-            |> Seq.sortBy (fun p -> endPosition.X - p.X + endPosition.Y - p.Y)
+            |> Seq.filter (fun (_, p, _) -> PositionIsWithinGrid(p) && path.Contains(p) = false)
+            //|> Seq.sortBy (fun (_, p, _) -> endPosition.X - p.X + endPosition.Y - p.Y)
 
         possiblePositions
-            |> Seq.iter (fun position ->
+            |> Seq.iter (fun (straightMoves, position, lastDirection) ->
                 let possibleHeatLoss = path.HeatLoss + grid[position].CostToEnter
 
                 // Immediately discard path candidates if the current best path is already better
@@ -185,25 +194,41 @@ while pathsToInvestigate.Count > 0 do
                         targetCell.MinimumHeatLoss <- possibleHeatLoss
                         counter <- counter + 1
 
-                        if counter % 100 = 0 then
+                        if counter % 1000 = 0 then
                             Console.SetCursorPosition(path.Position.X, path.Position.Y)
                             Console.ForegroundColor <- ConsoleColor.White
                             printf "%d" targetCell.CostToEnter
 
+                    let PositionIsWorthInvestigating(targetCell, incomingDirection, straightMoves) =
+                        let remainingStepsForThisPath = 3 - straightMoves
+                        seq { remainingStepsForThisPath .. 2 }
+                            |> Seq.exists (fun remainingSteps -> possibleHeatLoss >= incomingDirection.HeatLossByRemainingStraightMoves[remainingSteps]) = false
+
                     // Whether we follow from this path depends on the information on the cell
                     // investigate whether we had this incoming direction before and
                     // whether this path is worse than that
+                    let remainingStepsForThisPath = 3 - straightMoves
+                    let incomingDirection = targetCell.IncomingDirections[lastDirection]
+
+                    if PositionIsWorthInvestigating(targetCell, incomingDirection, straightMoves) then
+                        pathsToInvestigate.Enqueue(path.Append(position))
+
+                        if incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] > possibleHeatLoss then
+                            incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] <- possibleHeatLoss
+#if false
                     let possiblePath = path.Append(position)
                     let incomingDirection = targetCell.IncomingDirections[possiblePath.LastDirection]
                     let remainingStepsForThisPath = 3 - possiblePath.StraightMoves
                     if incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] > possibleHeatLoss then
                         incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] <- possibleHeatLoss
                         pathsToInvestigate.Enqueue(possiblePath)
+#endif
             )
 
 stopwatch.Stop()
 
-PrintPath(grid, bestPath.Value)
+Console.SetCursorPosition(0,0)
+bestPath.Value.Print()
 
 printfn "[Part 1]: Best Path %s" (bestPath.Value.ToString())
 
