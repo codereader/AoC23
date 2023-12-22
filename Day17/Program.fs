@@ -151,6 +151,7 @@ let stopwatch = new Stopwatch()
 stopwatch.Start()
 
 let mutable bestPath: Path option = None
+let mutable counter = 0
 
 while pathsToInvestigate.Count > 0 do
     let path = pathsToInvestigate.Dequeue()
@@ -173,23 +174,26 @@ while pathsToInvestigate.Count > 0 do
 
         possiblePositions
             |> Seq.iter (fun position ->
-                let possiblePath = path.Append(position)
-                let possibleHeatLoss = possiblePath.HeatLoss
+                let possibleHeatLoss = path.HeatLoss + grid[position].CostToEnter
 
                 // Immediately discard path candidates if the current best path is already better
-                if bestPath.IsNone || bestPath.Value.HeatLoss > possiblePath.HeatLoss then
-                    let targetCell = grid[possiblePath.Position]
+                if bestPath.IsNone || bestPath.Value.HeatLoss > possibleHeatLoss then
+                    let targetCell = grid[position]
 
                     // Record the minimum heat loss into the next tile
                     if targetCell.MinimumHeatLoss > possibleHeatLoss then
                         targetCell.MinimumHeatLoss <- possibleHeatLoss
-                        Console.SetCursorPosition(path.Position.X, path.Position.Y)
-                        Console.ForegroundColor <- ConsoleColor.White
-                        printf "%d" targetCell.CostToEnter
+                        counter <- counter + 1
+
+                        if counter % 100 = 0 then
+                            Console.SetCursorPosition(path.Position.X, path.Position.Y)
+                            Console.ForegroundColor <- ConsoleColor.White
+                            printf "%d" targetCell.CostToEnter
 
                     // Whether we follow from this path depends on the information on the cell
                     // investigate whether we had this incoming direction before and
                     // whether this path is worse than that
+                    let possiblePath = path.Append(position)
                     let incomingDirection = targetCell.IncomingDirections[possiblePath.LastDirection]
                     let remainingStepsForThisPath = 3 - possiblePath.StraightMoves
                     if incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] > possibleHeatLoss then
