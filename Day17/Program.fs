@@ -1,10 +1,11 @@
 ﻿open System
 open Utils
 open System.Collections.Generic
+open System.Diagnostics
 
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
-
+(*
 // Test input
 lines <- @"2413432311323
 3215453535623
@@ -19,16 +20,39 @@ lines <- @"2413432311323
 1224686865563
 2546548887735
 4322674655533".Replace("\r\n", "\n").Split('\n')
+*)
 
-type Cell = { mutable MinimumHeatLoss: int; CostToEnter: int }
+type DirectionInfo = {
+    mutable HeatLossByRemainingStraightMoves: List<int>
+}
+
+type Cell = {
+    mutable IncomingDirections: Map<Vector2, DirectionInfo>
+    mutable MinimumHeatLoss: int;
+    CostToEnter: int
+}
 
 let gridSize = Vector2(lines[0].Length, lines.Length)
+
+let CreateDefaultDirectionInfo() = 
+    { HeatLossByRemainingStraightMoves = new List<int>(seq { Int32.MaxValue; Int32.MaxValue; Int32.MaxValue; }) }
+
+let CreateIncomingDirectionInfo() =
+    Map.empty.
+        Add(Vector2.Up, CreateDefaultDirectionInfo()).
+        Add(Vector2.Down, CreateDefaultDirectionInfo()).
+        Add(Vector2.Left, CreateDefaultDirectionInfo()).
+        Add(Vector2.Right, CreateDefaultDirectionInfo())
 
 let GenerateGrid() =
     seq { 0..lines.Length-1 } 
     |> Seq.collect (fun y -> seq {
             for x in 0..lines[y].Length-1 do
-                yield (Vector2(x,y), { MinimumHeatLoss = Int32.MaxValue; CostToEnter = Int32.Parse((lines[y][x]).ToString()) })
+                yield (Vector2(x,y), {
+                    IncomingDirections = CreateIncomingDirectionInfo();
+                    MinimumHeatLoss = Int32.MaxValue;
+                    CostToEnter = Int32.Parse((lines[y][x]).ToString())
+                })
         })
     |> dict
 
@@ -36,8 +60,8 @@ let PositionIsWithinGrid(position: Vector2) = position.X >= 0 && position.X < gr
 
 let grid = GenerateGrid()
 
-type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>) =
-    let _heatLoss = steps |> Seq.skip(1) |> Seq.map (fun pos -> grid[pos].CostToEnter) |> Seq.sum
+type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>, heatLoss: int) =
+    let _heatLoss = heatLoss
 
     member this.Grid = grid
     member this.Steps = steps
@@ -56,6 +80,9 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>) =
         let lastDirection = this.LastDirection
         Vector2(lastDirection.Y, lastDirection.X * -1)
 
+    member this.Contains(pos: Vector2) = 
+        this.Steps.Contains(pos)
+
     member this.StraightMoves =
         let mutable straightMoves = 1
         let mutable currentPos = this.Steps.Count - straightMoves - 1
@@ -67,7 +94,7 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>) =
         straightMoves
 
     member this.CanMoveForward =
-        this.StraightMoves <= 3
+        this.StraightMoves < 3
 #if false
         let pathLength = this.Steps.Count
         if pathLength < 4 then
@@ -79,16 +106,15 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>) =
 
     member this.HeatLoss = _heatLoss
 
-    new(grid) = Path(grid, new List<Vector2>())
     new(grid, startPosition:Vector2) =
         let steps = new List<Vector2>()
         steps.Add(startPosition)
-        Path(grid, steps)
+        Path(grid, steps, 0)
 
     member this.Append(position: Vector2) =
         let steps = new List<Vector2>(this.Steps)
         steps.Add(position)
-        Path(grid, steps)
+        Path(grid, steps, this.HeatLoss + grid[position].CostToEnter)
 
     override this.ToString() =
         sprintf "%s" (String.Join(" > ", this.Steps |> Seq.map(fun step -> step.ToString())))
@@ -117,54 +143,66 @@ let endPosition = Vector2(gridSize.X - 1, gridSize.Y - 1)
 
 pathsToInvestigate.Enqueue(Path(grid, startPosition))
 
+Console.SetCursorPosition(0,0)
+PrintPath(grid, pathsToInvestigate.Peek())
+
+let stopwatch = new Stopwatch()
+
+stopwatch.Start()
+
 let mutable bestPath: Path option = None
 
 while pathsToInvestigate.Count > 0 do
     let path = pathsToInvestigate.Dequeue()
 
-    if path.Position = endPosition && (bestPath.IsNone || bestPath.Value.HeatLoss > path.HeatLoss) then
-        bestPath <- Some(path)
+    if bestPath.IsNone || bestPath.Value.HeatLoss > path.HeatLoss then
+        if path.Position = endPosition && (bestPath.IsNone || bestPath.Value.HeatLoss > path.HeatLoss) then
+            bestPath <- Some(path)
+            System.Diagnostics.Debug.WriteLine("Best loss so far = {0}, Remaining paths = {1}", bestPath.Value.HeatLoss, pathsToInvestigate.Count)
 
-    if path.Position = Vector2(12, 7) then
-        Console.SetCursorPosition(0,0)
-        PrintPath(grid, path)
-        printfn "N"
+        let possiblePositions =
+            seq {
+                yield path.Left
+                yield path.Right
 
-    let possiblePositions =
-        seq {
-            if PositionIsWithinGrid path.Left then yield path.Append(path.Left)
-            if PositionIsWithinGrid path.Right then yield path.Append(path.Right)
+                if path.CanMoveForward then
+                    yield path.Forward
+            } 
+            |> Seq.filter (fun p -> PositionIsWithinGrid(p) && path.Contains(p) = false)
+            |> Seq.sortBy (fun p -> endPosition.X - p.X + endPosition.Y - p.Y)
 
-            if PositionIsWithinGrid path.Forward && path.CanMoveForward then
-                yield path.Append(path.Forward)
-        } 
-        //|> Seq.filter (fun p -> PositionIsWithinGrid p.Position)
-        |> Seq.sortBy (fun p -> endPosition.X - p.Position.X + endPosition.Y - p.Position.Y)
+        possiblePositions
+            |> Seq.iter (fun position ->
+                let possiblePath = path.Append(position)
+                let possibleHeatLoss = possiblePath.HeatLoss
 
-    possiblePositions
-        |> Seq.iter (fun possiblePath ->
-            //if nextPos = Vector2(12,9) then
-            //Console.SetCursorPosition(0,0)
-            //PrintPath(grid, possiblePath)
-                //printfn "Gotcha"
+                // Immediately discard path candidates if the current best path is already better
+                if bestPath.IsNone || bestPath.Value.HeatLoss > possiblePath.HeatLoss then
+                    let targetCell = grid[possiblePath.Position]
 
-            let targetCell = grid[possiblePath.Position]
-            let possibleHeatLoss = possiblePath.HeatLoss
+                    // Record the minimum heat loss into the next tile
+                    if targetCell.MinimumHeatLoss > possibleHeatLoss then
+                        targetCell.MinimumHeatLoss <- possibleHeatLoss
+                        Console.SetCursorPosition(path.Position.X, path.Position.Y)
+                        Console.ForegroundColor <- ConsoleColor.White
+                        printf "%d" targetCell.CostToEnter
 
-            // Record the minimum heat loss into the next tile
-            if targetCell.MinimumHeatLoss >= possibleHeatLoss then
-                targetCell.MinimumHeatLoss <- possibleHeatLoss
-                pathsToInvestigate.Enqueue(possiblePath)
-            else //if targetCell.MinimumHeatLoss + 5 < possibleHeatLoss then
-                () // there is already a much better path to that next tile
-            //else
-            //    pathsToInvestigate.Enqueue(possiblePath)
+                    // Whether we follow from this path depends on the information on the cell
+                    // investigate whether we had this incoming direction before and
+                    // whether this path is worse than that
+                    let incomingDirection = targetCell.IncomingDirections[possiblePath.LastDirection]
+                    let remainingStepsForThisPath = 3 - possiblePath.StraightMoves
+                    if incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] > possibleHeatLoss then
+                        incomingDirection.HeatLossByRemainingStraightMoves[remainingStepsForThisPath] <- possibleHeatLoss
+                        pathsToInvestigate.Enqueue(possiblePath)
+            )
 
-            //if bestPath.IsNone || bestPath.Value.HeatLoss > possiblePath.HeatLoss then
-        )
+stopwatch.Stop()
 
 PrintPath(grid, bestPath.Value)
 
 printfn "[Part 1]: Best Path %s" (bestPath.Value.ToString())
 
+// Correct answer is 907
 printfn "[Part 1]: Minimum heat loss reaching the tile %A is %d" endPosition grid[endPosition].MinimumHeatLoss
+printfn "[Part 1]: This took %f seconds" (stopwatch.Elapsed.TotalSeconds)
