@@ -5,7 +5,6 @@ open System.Collections.Generic
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
-(*
 // Test input
 lines <- @"2413432311323
 3215453535623
@@ -20,7 +19,6 @@ lines <- @"2413432311323
 1224686865563
 2546548887735
 4322674655533".Replace("\r\n", "\n").Split('\n')
-*)
 
 type Cell = { mutable MinimumHeatLoss: int; CostToEnter: int }
 
@@ -58,13 +56,26 @@ type Path(grid: IDictionary<Vector2, Cell>, steps: List<Vector2>) =
         let lastDirection = this.LastDirection
         Vector2(lastDirection.Y, lastDirection.X * -1)
 
+    member this.StraightMoves =
+        let mutable straightMoves = 1
+        let mutable currentPos = this.Steps.Count - straightMoves - 1
+        let lastDirection = this.LastDirection
+        while currentPos - 1 >= 0 && 
+              this.Steps[currentPos] - this.Steps[currentPos - 1] = lastDirection do
+            straightMoves <- straightMoves + 1
+            currentPos <- currentPos - 1
+        straightMoves
+
     member this.CanMoveForward =
+        this.StraightMoves <= 3
+#if false
         let pathLength = this.Steps.Count
         if pathLength < 4 then
             true
         else
             let distance = this.Steps[pathLength - 4] - this.Steps[pathLength - 1]
             if Math.Abs(distance.X) = 3 || Math.Abs(distance.Y) = 3 then false else true
+#endif
 
     member this.HeatLoss = _heatLoss
 
@@ -114,19 +125,24 @@ while pathsToInvestigate.Count > 0 do
     if path.Position = endPosition && (bestPath.IsNone || bestPath.Value.HeatLoss > path.HeatLoss) then
         bestPath <- Some(path)
 
+    if path.Position = Vector2(12, 7) then
+        Console.SetCursorPosition(0,0)
+        PrintPath(grid, path)
+        printfn "N"
+
     let possiblePositions =
         seq {
-            yield path.Left
-            yield path.Right
-            if path.CanMoveForward then yield path.Forward
+            if PositionIsWithinGrid path.Left then yield path.Append(path.Left)
+            if PositionIsWithinGrid path.Right then yield path.Append(path.Right)
+
+            if PositionIsWithinGrid path.Forward && path.CanMoveForward then
+                yield path.Append(path.Forward)
         } 
-        |> Seq.filter PositionIsWithinGrid
-        |> Seq.sortBy (fun pos -> endPosition.X - pos.X + endPosition.Y - pos.Y)
+        //|> Seq.filter (fun p -> PositionIsWithinGrid p.Position)
+        |> Seq.sortBy (fun p -> endPosition.X - p.Position.X + endPosition.Y - p.Position.Y)
 
     possiblePositions
-        |> Seq.iter (fun nextPos ->
-            let possiblePath = path.Append(nextPos)
-
+        |> Seq.iter (fun possiblePath ->
             //if nextPos = Vector2(12,9) then
             //Console.SetCursorPosition(0,0)
             //PrintPath(grid, possiblePath)
@@ -139,10 +155,10 @@ while pathsToInvestigate.Count > 0 do
             if targetCell.MinimumHeatLoss >= possibleHeatLoss then
                 targetCell.MinimumHeatLoss <- possibleHeatLoss
                 pathsToInvestigate.Enqueue(possiblePath)
-            else if targetCell.MinimumHeatLoss + 5 < possibleHeatLoss then
+            else //if targetCell.MinimumHeatLoss + 5 < possibleHeatLoss then
                 () // there is already a much better path to that next tile
-            else
-                pathsToInvestigate.Enqueue(possiblePath)
+            //else
+            //    pathsToInvestigate.Enqueue(possiblePath)
 
             //if bestPath.IsNone || bestPath.Value.HeatLoss > possiblePath.HeatLoss then
         )
