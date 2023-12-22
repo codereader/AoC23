@@ -17,6 +17,9 @@ type Vector2(x,y) =
     static member (+) (a: Vector2, b: Vector2) =
         Vector2(a.X + b.X, a.Y + b.Y)
 
+    static member (*) (a: Vector2, b: int) =
+        Vector2(a.X * b, a.Y * b)
+
     static member (-) (a: Vector2, b: Vector2) =
         Vector2(a.X - b.X, a.Y - b.Y)
 
