@@ -6,7 +6,7 @@ open System.Diagnostics
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
-
+(*
 // Test input
 lines <- @"R 6 (#70c710)
 D 5 (#0dc571)
@@ -22,6 +22,7 @@ R 2 (#7807d2)
 U 3 (#a77fa3)
 L 2 (#015232)
 U 2 (#7a21e3)".Replace("\r\n", "\n").Split('\n')
+*)
 
 
 let startPos = Vector2(0,0)
@@ -141,7 +142,7 @@ max <- Vector2(0,0)
 
 type Edge = { StartPos: Vector2; EndPos: Vector2; Edge: Vector2 }
 
-#if !false
+#if false
 let edges =
     lines
     |> Seq.map (fun line -> line.Split(' '))
@@ -192,9 +193,21 @@ printfn "%A horizontal edges" allHorizontalEdges.Length
 
 // Full volume: accumulate all horizontal edge lengths times their distance from the x axis
 
-let volume = 
+let volumeA = 
     allHorizontalEdges
-    |> Seq.sumBy (fun edge -> (edge.EndPos.X - edge.StartPos.X + 1) * (gridSize.Y - edge.StartPos.Y))
+    |> Seq.sumBy (fun edge -> int64 edge.Edge.X * int64 edge.StartPos.Y)
+
+let edgeLengthSum =
+    edges
+    |> Seq.sumBy (fun edge -> Math.Abs(int64 edge.Edge.X) + Math.Abs(int64 edge.Edge.Y))
+
+let innerPoints = Math.Abs(volumeA) - (edgeLengthSum / 2L - 1L)
+
+printfn "[Part 2]: A = %d" volumeA
+printfn "[Part 2]: Edge Lengths = %d" edgeLengthSum
+printfn "[Part 2]: Inner Points (Pick) = %d" innerPoints
+
+let volume = Math.Abs(volumeA) + edgeLengthSum / 2L + 1L
 
 printfn "[Part 2]: Volume = %d" volume
 
