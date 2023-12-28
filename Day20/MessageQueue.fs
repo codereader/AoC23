@@ -22,9 +22,3 @@ type MessageQueue() =
 
     member this.PulseProduct = 
         int64 this.LowPulses * int64 this.HighPulses
-
-    member this.Reset() =
-        this.Queue.Clear()
-        this.MessageCount <- 0
-        this.HighPulses <- 0
-        this.LowPulses <- 0

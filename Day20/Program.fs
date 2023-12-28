@@ -66,13 +66,29 @@ nodes.Values
                 con.InputSignals.Add(node.Name, false)
     )
 
-printfn "Nodes: %s" (String.Join(", ", nodes.Values))
+printfn "Nodes: %s" (String.Join("\n", nodes.Values))
 printfn "Conjunctions: %d" conjunctions.Count
 printfn "Conjunctions: %A" conjunctions.Values
 
+let nodeConnectingToRx =
+    nodes.Values
+    |> Seq.filter (fun node -> node.OutputNodeNames.Contains("rx"))
+    |> Seq.cast<Conjunction>
+    |> Seq.head
+
+// Keep track of the inputs needing to be in HI at the same time
+nodeConnectingToRx.RecordHiLo <- true
+let nodesNeedingToGoHigh = nodeConnectingToRx.InputSignals
+
+printfn "Conjunction connecting to RX: %A" nodeConnectingToRx
+printfn "Nodes needed to switch to HI at the same time: %A" nodeConnectingToRx
+
 let broadcaster = nodes.Values |> Seq.find (fun node -> node.Name = "broadcaster")
 
-for _ in { 1..1000 } do
+let mutable count = 0
+while nodeConnectingToRx.InputPeriodicity.Count < nodeConnectingToRx.InputSignals.Count do
+    count <- count + 1
+    nodeConnectingToRx.ButtonPresses <- count
     messageQueue.Push({ From = button.Name; To = broadcaster.Name; IsHighPulse = false })
 
     while messageQueue.HasMessages do
@@ -83,8 +99,12 @@ for _ in { 1..1000 } do
         if found then
             node.ReceiveImpulse(message.From, message.IsHighPulse)
 
-printfn "[Part 1]: Pulses recorded: %d (Low: %d, High: %d)" messageQueue.MessageCount messageQueue.LowPulses messageQueue.HighPulses
-printfn "[Part 1]: Pulse Product: %d" messageQueue.PulseProduct // 681194780
+    if count = 1000 then
+        printfn "[Part 1]: Pulses recorded: %d (Low: %d, High: %d)" messageQueue.MessageCount messageQueue.LowPulses messageQueue.HighPulses
+        printfn "[Part 1]: Pulse Product: %d" messageQueue.PulseProduct // 681194780
 
-messageQueue.Reset()
+printfn "[Part 2]: Periodicities %s" (String.Join(", ", nodeConnectingToRx.InputPeriodicity.Values))
 
+let mutable product = 1L
+nodeConnectingToRx.InputPeriodicity.Values |> Seq.iter (fun p -> product <- product * int64 p)
+printfn "[Part 2]: Product of all periodicities = %d" product // 238593356738827
