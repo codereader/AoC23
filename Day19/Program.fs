@@ -128,7 +128,7 @@ let partSum =
     |> Seq.filter (fun part -> part.Accepted.Value)
     |> Seq.sumBy (fun part -> part.X + part.M + part.A + part.S)
 
-printfn "[Part 1]: Sum of all classifications of accepted parts = %d" partSum
+printfn "[Part 1]: Sum of all classifications of accepted parts = %d" partSum // 367602
 
 (* ============================================================================== *)
 
@@ -270,4 +270,4 @@ let combinationCount =
                               int64 (part.A.Max - part.A.Min + 1) *
                               int64 (part.S.Max - part.S.Min + 1))
 
-printfn "[Part 2] Acceptable combinations: %d" combinationCount
+printfn "[Part 2] Acceptable combinations: %d" combinationCount // 125317461667458
