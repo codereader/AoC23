@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Message.fs" />
+    <Compile Include="MessageQueue.fs" />
+    <Compile Include="Node.fs" />
+    <Compile Include="Button.fs" />
+    <Compile Include="Broadcaster.fs" />
+    <Compile Include="Conjunction.fs" />
+    <Compile Include="FlipFlop.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Utils\Utils.fsproj" />
+  </ItemGroup>
+
+</Project>
