@@ -193,21 +193,20 @@ printfn "%A horizontal edges" allHorizontalEdges.Length
 
 // Full volume: accumulate all horizontal edge lengths times their distance from the x axis
 
-let volumeA = 
+// Calculate the area (shoelace)
+let shoeLaceArea = 
     allHorizontalEdges
     |> Seq.sumBy (fun edge -> int64 edge.Edge.X * int64 edge.StartPos.Y)
 
-let edgeLengthSum =
+// For Pick's theorem, we need the value R (number of edge points on the grid)
+let allEdgeLengths =
     edges
     |> Seq.sumBy (fun edge -> Math.Abs(int64 edge.Edge.X) + Math.Abs(int64 edge.Edge.Y))
 
-let innerPoints = Math.Abs(volumeA) - (edgeLengthSum / 2L - 1L)
+printfn "[Part 2]: Area (Shoelace) = %d" shoeLaceArea
+printfn "[Part 2]: Edge Lengths = %d" allEdgeLengths
 
-printfn "[Part 2]: A = %d" volumeA
-printfn "[Part 2]: Edge Lengths = %d" edgeLengthSum
-printfn "[Part 2]: Inner Points (Pick) = %d" innerPoints
-
-let volume = Math.Abs(volumeA) + edgeLengthSum / 2L + 1L
+// Change Pick's theorem to find the number of inner points I, then add the border area
+let volume = Math.Abs(shoeLaceArea) + allEdgeLengths / 2L + 1L
 
 printfn "[Part 2]: Volume = %d" volume
-
