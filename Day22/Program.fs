@@ -18,6 +18,11 @@ lines <- @"1,0,1~1,2,1
 *)
 
 type Brick(line) =
+    interface IComparable with
+        member this.CompareTo(obj) =
+            let other = obj :?> Brick
+            this.Id.CompareTo(other.Id)
+
     member val Blocks = Brick.GetBlocks(line) with get
     member val Name = Brick.GetNextName() with get
     member val Id = Brick.GetNextId() with get
@@ -32,6 +37,8 @@ type Brick(line) =
 
     member val BricksBelow = new HashSet<Brick>() with get
     member val BricksAbove = new HashSet<Brick>() with get
+
+    member val BricksThatWouldFall: HashSet<Brick> = null with get, set
 
     static member private GetBlocks(line:string) =
         let vectors = line.Split('~')
@@ -96,7 +103,7 @@ let MoveDownward(grid, brick) =
 
 bricks |> Seq.iter (fun brick -> MoveDownward(grid, brick))
 
-grid |> Seq.iter (fun kvp -> printfn "%A %A" kvp.Key kvp.Value.Name)
+//grid |> Seq.iter (fun kvp -> printfn "%A %A" kvp.Key kvp.Value.Name)
 
 bricks |> Seq.iter (fun brick ->
         for block in brick.Blocks do
@@ -113,3 +120,24 @@ let bricksToDisintegrate =
 
 printfn "[Part 1]: Bricks to disintegrate: %d %A" bricksToDisintegrate.Length bricksToDisintegrate // 475
 
+let rec FindBricksThatWouldFall(brick: Brick, unstable: HashSet<Brick>) =
+    let result = new HashSet<Brick>()
+
+    ignore(unstable.Add(brick))
+
+    for above in brick.BricksAbove do
+        if above.BricksBelow |> Seq.forall (fun b -> unstable.Contains(b)) then
+            ignore(result.Add(above))
+            ignore(unstable.Add(above))
+
+            for recursiveBrick in FindBricksThatWouldFall(above, unstable) do 
+                ignore(result.Add(recursiveBrick))
+
+    result
+
+let totalBricksThatWouldFall =
+    bricks
+    |> Seq.map (fun brick -> FindBricksThatWouldFall(brick, (new HashSet<Brick>())))
+    |> Seq.sumBy (fun list -> list.Count)
+
+printfn "[Part 2]: Bricks that would fall: %d" totalBricksThatWouldFall // 79144
