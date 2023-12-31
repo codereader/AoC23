@@ -51,6 +51,9 @@ type Vector3L(x: int64, y: int64, z: int64) =
     static member (+) (a: Vector3L, b: Vector3L) =
         Vector3L(a.X + b.X, a.Y + b.Y, a.Z + b.Z)
 
+    static member (-) (a: Vector3L, b: Vector3L) =
+        Vector3L(a.X - b.X, a.Y - b.Y, a.Z - b.Z)
+
     override this.GetHashCode() =
         System.HashCode.Combine(hash this.X, hash this.Y, hash this.Z)
 
