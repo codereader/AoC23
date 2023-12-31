@@ -206,7 +206,60 @@ let allCrossings =
 
 printfn "Found %d crossings: %A" allCrossings.Length allCrossings
 
+let TryFindDistanceBetweenCrossings(grid: char array array, first: int, second: int) =
+    let startPos = allCrossings[first]
+    let endPos = allCrossings[second]
+    let otherCrossings =
+        seq { 0 .. allCrossings.Length - 1 }
+        |> Seq.filter (fun i -> i <> first && i <> second)
+        |> Seq.map (fun i -> allCrossings[i])
+        |> Set.ofSeq
 
+    let positionsToInvestigate = new Queue<Tuple<Vector2, int>>()
+    positionsToInvestigate.Enqueue((startPos, 0))
+
+    let mutable foundDistance: int option = None
+    let investigatedPositions = new HashSet<Vector2>()
+    ignore(investigatedPositions.Add(startPos))
+
+    while positionsToInvestigate.Count > 0 && foundDistance.IsNone do
+
+        let (pos, dist) = positionsToInvestigate.Dequeue()
+
+        NESW
+            |> Seq.map (fun dir -> pos + dir)
+            |> Seq.filter (fun pos -> pos.X >= 0 && pos.X < gridSize.X && pos.Y >= 0 && pos.Y < gridSize.Y)
+            |> Seq.filter (fun pos -> grid[pos.Y][pos.X] <> '#')
+            |> Seq.filter (fun pos -> investigatedPositions.Contains(pos) = false)
+            |> Seq.filter (fun pos -> otherCrossings.Contains(pos) = false)
+            |> Seq.iter (fun pos -> 
+                if pos = endPos then
+                    foundDistance <- Some(dist + 1)
+                else
+                    positionsToInvestigate.Enqueue((pos, dist + 1))
+                    ignore(investigatedPositions.Add(pos))
+            )
+        ()
+
+    foundDistance
+
+type Connection = { Begin: int; End: int; Length: int }
+
+let connections =
+    seq {
+    // Connect all crossings to their first neighbour, connect by index
+    for first in { 0 .. allCrossings.Length - 1 } do
+        for second in { 0 .. allCrossings.Length - 1 } do
+            if first <> second then
+                let distanceBetweenCrossings = TryFindDistanceBetweenCrossings(modifiedGrid, first, second)
+                if distanceBetweenCrossings.IsSome then
+                    yield { Begin = first; End = second; Length = distanceBetweenCrossings.Value } // Create a new connection between these two crossings
+    }
+    |> Seq.toArray
+
+printfn "Found %d connections" connections.Length
+for conn in connections do
+    printfn "Connection: %A" conn
 
 #if false
 let ExtendPath(path:Path) =
