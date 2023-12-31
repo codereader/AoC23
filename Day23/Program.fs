@@ -151,14 +151,19 @@ let FindLongestPath(grid: char array array, startPos) =
                 // Found a new best path?
                 if newPath.CurrentPosition = endPos && (longestPath.IsNone || longestPath.Value.Steps.Count < newPath.Steps.Count) then
                     longestPath <- Some(newPath)
-                    printfn "New best path length: %d" newPath.Steps.Count
+                    //printfn "New best path length: %d" newPath.Steps.Count
                 else
                     pathsToInvestigate.Enqueue(newPath)
             )
 
     longestPath
 
-// Create a new grid swapping out the slopes
+let longestPathPart1 = FindLongestPath(grid, startPos)
+System.Console.SetCursorPosition(0, 2)
+PrintGrid(grid, longestPathPart1.Value)
+printfn "[Part 1]: Longest path = %d" longestPathPart1.Value.Steps.Count
+
+// Part 2: Create a new grid swapping out the slopes
 
 let modifiedGrid =
     grid
@@ -168,14 +173,6 @@ let modifiedGrid =
     |> Seq.toArray
 
 // Preprocess the graph, finding the crossings
-
-let GetPossibleDirections(path: Path) =
-    NESW
-    |> Seq.map (fun dir -> path.CurrentPosition + dir)
-    |> Seq.filter (fun pos -> pos.X >= 0 && pos.X < gridSize.X && pos.Y >= 0 && pos.Y < gridSize.Y)
-    |> Seq.filter (fun pos -> grid[pos.Y][pos.X] <> '#')
-    |> Seq.filter (fun pos -> path.Positions.Contains(pos) = false)
-    |> Seq.toArray
 
 let GetOutgoingDirections(pos: Vector2) =
     NESW
@@ -190,7 +187,7 @@ let allGridPositions = seq {
             yield Vector2(x, y)
     }
 
-PrintGrid(modifiedGrid, Path())
+//PrintGrid(modifiedGrid, Path())
 
 // Find all path crossings on the map, including the start and and positions
 // Since the start is on the top left and the exit is on the bottom right they end up at the head and the tail of the array
