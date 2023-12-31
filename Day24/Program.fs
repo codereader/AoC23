@@ -91,6 +91,7 @@ for pair in indexPairs do
     if pos2.IsSome && pos.IsSome && pos.Value.X >= 7 && pos.Value.X <= 27 && pos.Value.Y >= 7 && pos.Value.Y <= 27 then printfn " YAY" else printfn ""
 #endif
 
+// We try to guess the velocity by trying out a range of low values
 let velocities = seq {
     for vy in { -500..500 } do
         for vx in { -500..500 } do
@@ -152,7 +153,8 @@ let FindStonePosition(remap: Vector3L -> Vector2f) =
         |> Seq.find _.IsSome
     position.Value
 
-
+// Find the stone position by XY plane and by YZ plane, one after the other
+// First, use the XY projection to find 2 of the three coordinates, then the remaining one
 let xyPosition = FindStonePosition(RemapXY)
 let yzPosition = FindStonePosition(RemapYZ)
 printfn "[Part 2]: Position XY: %A" xyPosition
