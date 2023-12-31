@@ -6,7 +6,6 @@ open System.Diagnostics
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
-(*
 // Test input
 lines <- @"#.#####################
 #.......#########...###
@@ -31,7 +30,6 @@ lines <- @"#.#####################
 #.###.###.#.###.#.#v###
 #.....###...###...#...#
 #####################.#".Replace("\r\n", "\n").Split('\n')
-*)
 
 let grid =
     lines
@@ -184,6 +182,33 @@ let GetPossibleDirections(path: Path) =
     |> Seq.filter (fun pos -> path.Positions.Contains(pos) = false)
     |> Seq.toArray
 
+let GetOutgoingDirections(pos: Vector2) =
+    NESW
+    |> Seq.map (fun dir -> pos + dir)
+    |> Seq.filter (fun pos -> pos.X >= 0 && pos.X < gridSize.X && pos.Y >= 0 && pos.Y < gridSize.Y)
+    |> Seq.filter (fun pos -> grid[pos.Y][pos.X] <> '#')
+    |> Seq.toArray
+
+let allGridPositions = seq {
+    for y in seq { 0.. modifiedGrid.Length-1 } do
+        for x in seq { 0.. modifiedGrid[0].Length-1 } do
+            yield Vector2(x, y)
+    }
+
+PrintGrid(modifiedGrid, Path())
+
+// Find all path crossings on the map, including the start and and positions
+// Since the start is on the top left and the exit is on the bottom right they end up at the head and the tail of the array
+let allCrossings =
+    allGridPositions
+    |> Seq.filter (fun pos -> grid[pos.Y][pos.X] = '.' && (pos = startPos || pos = endPos || GetOutgoingDirections(pos).Length > 2))
+    |> Seq.toArray
+
+printfn "Found %d crossings: %A" allCrossings.Length allCrossings
+
+
+
+#if false
 let ExtendPath(path:Path) =
     let mutable possibleDirections = GetPossibleDirections(path)
 
@@ -348,4 +373,4 @@ PrintPathSequence(modifiedGrid, bestSequence.Value)
 System.Console.SetCursorPosition(0, gridSize.Y + 1)
 printfn "[Part 2]: Longest path = %d" bestSequence.Value.Length
 printfn "[Part 2]: This took %f seconds" stopwatch.Elapsed.TotalSeconds
-
+#endif
