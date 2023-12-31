@@ -27,9 +27,9 @@ let hailstones =
         )
     |> Seq.toArray
 
-printfn "%d hailstones: %A" hailstones.Length hailstones
+printfn "%d hailstones" hailstones.Length
 
-let Intersection(h1: Hailstone, h2: Hailstone) =
+let IntersectionWithPositiveT(h1: Hailstone, h2: Hailstone) =
     let px1 = float h1.Pos.X
     let px2 = float h2.Pos.X
     let py1 = float h1.Pos.Y
@@ -71,7 +71,7 @@ let rangeMax = 400000000000000.0
 let numberOfCrossingsWithinArea = 
     indexPairs
     |> Seq.map (fun pair -> (hailstones[fst pair], hailstones[snd pair]))
-    |> Seq.map (fun stones -> (Intersection(fst stones, snd stones), Intersection(snd stones, fst stones)))
+    |> Seq.map (fun stones -> (IntersectionWithPositiveT(fst stones, snd stones), IntersectionWithPositiveT(snd stones, fst stones)))
     |> Seq.filter (fun pair -> (fst pair).IsSome && (snd pair).IsSome)
     |> Seq.map (fun pair -> (fst pair).Value)
     |> Seq.filter (fun pos -> pos.X >= rangeMin && pos.X <= rangeMax && pos.Y >= rangeMin && pos.Y <= rangeMax)
@@ -97,7 +97,7 @@ let velocities = seq {
             yield Vector2(vx, vy)
     }
 
-let Crossing(h1: Hailstone, h2: Hailstone) =
+let Intersection(h1: Hailstone, h2: Hailstone) =
     let px1 = float h1.Pos.X
     let px2 = float h2.Pos.X
     let py1 = float h1.Pos.Y
@@ -118,12 +118,12 @@ let Crossing(h1: Hailstone, h2: Hailstone) =
     let y1 = py1 + t1*vy1
     Some(Vector2f(x1, y1))
 
-let CrossingWithVelocity(h1: Hailstone, h2: Hailstone, vel: Vector2) =
+let IntersectionWithVelocity(h1: Hailstone, h2: Hailstone, vel: Vector2) =
     let hailStone1 = { Pos = h1.Pos; Velocity = h1.Velocity - Vector3L(vel.X, vel.Y, 0) }
     let hailStone2 = { Pos = h2.Pos; Velocity = h2.Velocity - Vector3L(vel.X, vel.Y, 0) }
-    Crossing(hailStone1, hailStone2)
+    Intersection(hailStone1, hailStone2)
 
-let HailStoneWithVelocityIsCrossing(h: Hailstone, vel: Vector2, rock: Vector2f) =
+let HailStoneWithVelocityIsHitting(h: Hailstone, vel: Vector2, rock: Vector2f) =
     let a = (rock.X - float h.Pos.X) * (float h.Velocity.Y - float vel.Y) 
     let b = (rock.Y - float h.Pos.Y) * (float h.Velocity.X - float vel.X)
     Math.Abs(a - b) < 0.001
@@ -131,13 +131,13 @@ let HailStoneWithVelocityIsCrossing(h: Hailstone, vel: Vector2, rock: Vector2f) 
 let candidateVelocity =
     velocities
     |> Seq.tryFind (fun velocity -> 
-        let point = CrossingWithVelocity(hailstones[0], hailstones[1], velocity)
+        let point = IntersectionWithVelocity(hailstones[0], hailstones[1], velocity)
 
         if point.IsSome then
             let allMatching = 
                 hailstones
                 |> Seq.forall (fun stone ->
-                    point.IsSome && HailStoneWithVelocityIsCrossing(stone, velocity, point.Value))
+                    point.IsSome && HailStoneWithVelocityIsHitting(stone, velocity, point.Value))
             allMatching
         else 
             false
