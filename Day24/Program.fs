@@ -94,18 +94,18 @@ for pair in indexPairs do
 let velocities = seq {
     for vy in { -500..500 } do
         for vx in { -500..500 } do
-            yield Vector2(vx, vy)
+            yield Vector2f(vx, vy)
     }
 
-let Intersection(h1: Hailstone, h2: Hailstone) =
-    let px1 = float h1.Pos.X
-    let px2 = float h2.Pos.X
-    let py1 = float h1.Pos.Y
-    let py2 = float h2.Pos.Y
-    let vx1 = float h1.Velocity.X
-    let vx2 = float h2.Velocity.X
-    let vy1 = float h1.Velocity.Y
-    let vy2 = float h2.Velocity.Y
+let Intersection(h1Pos: Vector2f, h1Vel: Vector2f, h2Pos: Vector2f, h2Vel: Vector2f) =
+    let px1 = float h1Pos.X
+    let px2 = float h2Pos.X
+    let py1 = float h1Pos.Y
+    let py2 = float h2Pos.Y
+    let vx1 = float h1Vel.X
+    let vx2 = float h2Vel.X
+    let vy1 = float h1Vel.Y
+    let vy2 = float h2Vel.Y
 
     let deltapx = px2 - px1
     let deltapy = py2 - py1
@@ -118,32 +118,47 @@ let Intersection(h1: Hailstone, h2: Hailstone) =
     let y1 = py1 + t1*vy1
     Some(Vector2f(x1, y1))
 
-let IntersectionWithVelocity(h1: Hailstone, h2: Hailstone, vel: Vector2) =
-    let hailStone1 = { Pos = h1.Pos; Velocity = h1.Velocity - Vector3L(vel.X, vel.Y, 0) }
-    let hailStone2 = { Pos = h2.Pos; Velocity = h2.Velocity - Vector3L(vel.X, vel.Y, 0) }
-    Intersection(hailStone1, hailStone2)
+let IntersectionWithVelocity(h1Pos: Vector2f, h1Vel: Vector2f, h2Pos: Vector2f, h2Vel: Vector2f, vel: Vector2f) =
+    Intersection(h1Pos, h1Vel - vel, h2Pos, h2Vel - vel)
 
-let HailStoneWithVelocityIsHitting(h: Hailstone, vel: Vector2, rock: Vector2f) =
-    let a = (rock.X - float h.Pos.X) * (float h.Velocity.Y - float vel.Y) 
-    let b = (rock.Y - float h.Pos.Y) * (float h.Velocity.X - float vel.X)
+let HailStoneWithVelocityIsHitting(hailPos: Vector2f, hailVel: Vector2f, vel: Vector2f, rock: Vector2f) =
+    let a = (rock.X - float hailPos.X) * (float hailVel.Y - vel.Y) 
+    let b = (rock.Y - float hailPos.Y) * (float hailVel.X - vel.X)
     Math.Abs(a - b) < 0.001
 
-let candidateVelocity =
-    velocities
-    |> Seq.tryFind (fun velocity -> 
-        let point = IntersectionWithVelocity(hailstones[0], hailstones[1], velocity)
+let RemapXY(vec: Vector3L) =
+    Vector2f(float vec.X, float vec.Y)
 
-        if point.IsSome then
-            let allMatching = 
-                hailstones
-                |> Seq.forall (fun stone ->
-                    point.IsSome && HailStoneWithVelocityIsHitting(stone, velocity, point.Value))
-            allMatching
-        else 
-            false
-    )
+let RemapYZ(vec: Vector3L) =
+    Vector2f(float vec.Y, float vec.Z)
 
-printfn "[Part 2]: Velocity: %A" candidateVelocity
+let FindStonePosition(remap: Vector3L -> Vector2f) =
+    let position = 
+        velocities
+        |> Seq.map (fun velocity -> 
+
+            let point = IntersectionWithVelocity(remap(hailstones[0].Pos), remap(hailstones[0].Velocity),
+                remap(hailstones[1].Pos), remap(hailstones[1].Velocity), velocity)
+
+            if point.IsSome then
+                let allMatching = 
+                    hailstones
+                    |> Seq.forall (fun stone ->
+                        point.IsSome && HailStoneWithVelocityIsHitting(remap(stone.Pos), remap(stone.Velocity), velocity, point.Value))
+                if allMatching then Some(point.Value) else None
+            else 
+                None
+        )
+        |> Seq.find _.IsSome
+    position.Value
 
 
+let xyPosition = FindStonePosition(RemapXY)
+let yzPosition = FindStonePosition(RemapYZ)
+printfn "[Part 2]: Position XY: %A" xyPosition
+printfn "[Part 2]: Position YZ: %A" yzPosition
+
+let stonePosition = Vector3L(int64 xyPosition.X, int64 xyPosition.Y, int64 yzPosition.Y)
+printfn "[Part 2]: Stone Position: %A" stonePosition
+printfn "[Part 2]: Stone Position X+Y+Z = %d" (int64 (stonePosition.X + stonePosition.Y + stonePosition.Z))
 
