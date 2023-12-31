@@ -34,6 +34,29 @@ type Vector2(x,y) =
     static member Down = Vector2(0,1)
     static member Left = Vector2(-1,0)
 
+type Vector3L(x: int64, y: int64, z: int64) =
+    interface IComparable with
+        member this.CompareTo(obj) =
+            let other = obj :?> Vector3L
+            ((this.X, this.Y, this.Z) :> IComparable).CompareTo((other.X, other.Y, other.Z))
+
+    member val X = x with get,set
+    member val Y = y with get,set
+    member val Z = z with get,set
+
+    override this.Equals(other) =
+        let otherVec = other :?> Vector3L
+        otherVec.X = this.X && otherVec.Y = this.Y && otherVec.Z = this.Z
+
+    static member (+) (a: Vector3L, b: Vector3L) =
+        Vector3L(a.X + b.X, a.Y + b.Y, a.Z + b.Z)
+
+    override this.GetHashCode() =
+        System.HashCode.Combine(hash this.X, hash this.Y, hash this.Z)
+
+    override this.ToString() =
+        sprintf "[%d %d %d]" this.X this.Y this.Z
+
 type Vector2f(x: float,y: float) =
     interface IComparable with
         member this.CompareTo(obj) =
