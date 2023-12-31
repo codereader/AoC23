@@ -6,6 +6,7 @@ open System.Diagnostics
 // Real puzzle input
 let mutable lines = IO.File.ReadAllLines @"..\..\..\input.txt"
 
+(*
 // Test input
 lines <- @"#.#####################
 #.......#########...###
@@ -30,6 +31,7 @@ lines <- @"#.#####################
 #.###.###.#.###.#.#v###
 #.....###...###...#...#
 #####################.#".Replace("\r\n", "\n").Split('\n')
+*)
 
 let grid =
     lines
@@ -156,13 +158,6 @@ let FindLongestPath(grid: char array array, startPos) =
 
     longestPath
 
-#if false
-let longestPathPart1 = FindLongestPath(grid, startPos)
-//System.Console.SetCursorPosition(0, 2)
-//PrintGrid(grid, longestPathPart1.Value)
-printfn "[Part 1]: Longest path = %d" longestPathPart1.Value.Steps.Count
-#endif
-
 // Create a new grid swapping out the slopes
 
 let modifiedGrid =
@@ -258,172 +253,37 @@ let connections =
     |> Seq.toArray
 
 printfn "Found %d connections" connections.Length
-for conn in connections do
-    printfn "Connection: %A" conn
 
-#if false
-let ExtendPath(path:Path) =
-    let mutable possibleDirections = GetPossibleDirections(path)
+type PathSequence = { Crossings: int Set; LastCrossing: int; Length: int }
 
-    while possibleDirections.Length = 1 do
-        path.AddStepInPlace(possibleDirections[0])
-        possibleDirections <- GetPossibleDirections(path)
+let FindLongestPathPart2() =
+    let startPath = { Crossings = seq { 0 } |> Set.ofSeq; LastCrossing = 0; Length = 0 }
 
-    if path.CurrentPosition = endPos then
-        path.IsRoadToExit <- true
+    let pathsToInvestigate = new Stack<PathSequence>()
+    pathsToInvestigate.Push(startPath)
 
-Path.NextName <- 'A'
-let pathsToExtend = new Queue<Path>()
-let startPath = Path().AddStep(startPos)
-pathsToExtend.Enqueue(startPath)
+    let mutable longestPath: PathSequence option = None
 
-let crossings = new Dictionary<Vector2, HashSet<Path>>()
+    while pathsToInvestigate.Count > 0 do
+        let path = pathsToInvestigate.Pop()
 
-while pathsToExtend.Count > 0 do
-    let path = pathsToExtend.Dequeue()
-    ExtendPath(path)
-
-    //System.Console.SetCursorPosition(0, 0)
-    //PrintGrid(modifiedGrid, path)
-
-    let startPos = path.Steps[0]
-    let endPos = path.CurrentPosition
-
-    if crossings.ContainsKey(startPos) = false then
-        crossings[startPos] <- new HashSet<Path>()
-
-    if crossings.ContainsKey(endPos) = false then
-        crossings[endPos] <- new HashSet<Path>()
-
-        // Spawn off new paths to extend from this new crossing
-        let possibleDirections = GetPossibleDirections(path)
-
-        possibleDirections
-            |> Seq.map (fun pos -> Path().AddStep(endPos).AddStep(pos))
-            |> Seq.iter (fun followUpPath ->
-                pathsToExtend.Enqueue(followUpPath))
-
-    // Register this extended path in the start and end positions
-    if crossings[startPos] |> Seq.exists (fun p -> p.Positions.SetEquals(path.Positions)) = false then
-        ignore(crossings[startPos].Add(path))
-
-    if crossings[endPos] |> Seq.exists (fun p -> p.Positions.SetEquals(path.Positions)) = false then
-        ignore(crossings[endPos].Add(path))
-
-        //for toExtend in pathsToExtend do
-        //    System.Console.ForegroundColor <- System.ConsoleColor.DarkGreen
-        //    System.Console.SetCursorPosition(toExtend.CurrentPosition.X, toExtend.CurrentPosition.Y)
-        //    System.Console.Write('X')
-    ()
-
-printfn "Start Path Connections: %d" startPath.Connections.Count
-
-#if false
-for kvp in crossings do
-    System.Console.SetCursorPosition(0,0)
-    PrintGrid(modifiedGrid, Path())
-    System.Console.SetCursorPosition(kvp.Key.X, kvp.Key.Y)
-    printf "%c" 'X'
-
-    let mutable ch = '1'
-    for path in kvp.Value do
-        PrintPath(path, ch)
-        ch <- char (int ch + 1)
-    ()
-#endif
-
-type PathSequence() =
-    member val Paths = new HashSet<Path>() with get
-    member val Steps = new List<Path>() with get
-    member val Length = 0 with get, set
-    member this.LastPath = this.Steps[this.Steps.Count - 1]
-    member val LastPosition = Vector2(-1,-1) with get, set
-
-    member this.AddPath(path: Path) =
+        if path.LastCrossing = allCrossings.Length - 1 && (longestPath.IsNone || longestPath.Value.Length < path.Length) then
+            longestPath <- Some(path)
+            printfn "Found a new longest path = %d" longestPath.Value.Length
         
-        if this.LastPosition = Vector2(-1,-1)  then
-            this.LastPosition <- path.CurrentPosition
-        else if this.LastPosition = path.Steps[0] then
-            // The path is continuing right from the last sequence
-            this.LastPosition <- path.CurrentPosition
-        else
-            // The path seems to be connected back-to-front
-            this.LastPosition <- path.Steps[0]
-            
-        ignore(this.Paths.Add(path))
-        this.Steps.Add(path)
-        this.Length <- this.Length + path.Steps.Count - 1 // Paths are always including the crossing they started from
+        connections
+            |> Seq.filter (fun conn -> conn.Begin = path.LastCrossing) // try to go from here
+            |> Seq.filter (fun conn -> path.Crossings.Contains(conn.End) = false) // don't go anywhere we've already been
+            |> Seq.map (fun conn -> { Crossings = path.Crossings.Add(conn.End); LastCrossing = conn.End; Length = path.Length + conn.Length })
+            |> Seq.iter (fun path -> pathsToInvestigate.Push(path))
+        ()
 
-    member this.WithPath(path) =
-        let clone = PathSequence()
-        for p in this.Steps do
-            ignore(clone.AddPath(p))
-        clone.AddPath(path)
-        clone
-
-let PrintPathSequence(grid: char array array, sequence: PathSequence) =
-    System.Console.SetCursorPosition(0,0)
-    PrintGrid(modifiedGrid, sequence.Steps[0])
-
-    let mutable ch = '1'
-    for path in sequence.Steps do
-        PrintPath(path, ch)
-        ch <- char (int ch + 1)
-    System.Console.SetCursorPosition(0, gridSize.Y + 1)
-
-let FindLongestPathPart2(startPath) =
-
-    let seqsToInvestigate = new Stack<PathSequence>()
-
-    let rootPath = PathSequence()
-    rootPath.AddPath(startPath)
-
-    seqsToInvestigate.Push(rootPath)
-    let mutable longestSeq: PathSequence option = None
-
-    while seqsToInvestigate.Count > 0 do
-        let sequence = seqsToInvestigate.Pop()
-
-        //PrintPathSequence(modifiedGrid, sequence)
-        //printfn "Current Length: %d" sequence.Length
-
-        let foundCrossing, outgoingPaths = crossings.TryGetValue(sequence.LastPosition)
-
-        if foundCrossing then
-            let roadToExit = outgoingPaths |> Seq.tryFind _.IsRoadToExit
-
-            // We have to take the road to the exit, every other road is going to block off the path to the exit
-            let pathsToInvestigate = if roadToExit.IsSome then seq { roadToExit.Value } else outgoingPaths
-
-            pathsToInvestigate
-            |> Seq.filter (fun path -> sequence.Paths.Contains(path) = false)
-            |> Seq.map (fun path -> sequence.WithPath(path))
-            |> Seq.iter (fun newSequence ->
-                // Found a new best path?
-                if newSequence.LastPath.IsRoadToExit && (longestSeq.IsNone || longestSeq.Value.Length < newSequence.Length) then
-                    longestSeq <- Some(newSequence)
-
-                    System.Console.Clear()
-                    PrintPathSequence(modifiedGrid, newSequence)
-
-                    System.Console.SetCursorPosition(0, gridSize.Y + 1)
-                    printfn "Found new best path sequence with length: %d" newSequence.Length
-                else
-                    seqsToInvestigate.Push(newSequence)
-            )
-
-    longestSeq
+    longestPath.Value
 
 let stopwatch = new Stopwatch()
 stopwatch.Start()
-
-let bestSequence = FindLongestPathPart2(startPath)
-
+let longestPathPart2 = FindLongestPathPart2()
 stopwatch.Stop()
 
-PrintPathSequence(modifiedGrid, bestSequence.Value)
-
-System.Console.SetCursorPosition(0, gridSize.Y + 1)
-printfn "[Part 2]: Longest path = %d" bestSequence.Value.Length
+printfn "[Part 2]: Longest path = %d" longestPathPart2.Length
 printfn "[Part 2]: This took %f seconds" stopwatch.Elapsed.TotalSeconds
-#endif
