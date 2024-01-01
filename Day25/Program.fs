@@ -79,7 +79,7 @@ let GetVisiblePath(path: int Set) =
     String.Join("|", path |> Seq.map (fun i -> sprintf "%s->%s" nodeNames[edges[i].From] nodeNames[edges[i].To]))
 
 // Calculate reachabilities from one node to every other node, keep track of edges used
-let CalculateReachabilities(startNodeIndex: int, cutEdges: List<int>) =
+let CalculateReachabilities(startNodeIndex: int, cutEdges: int list) =
     let reachedNodes = new Dictionary<int, Set<int>>()
 
     let nodesToInvestigate = new Queue<ReachedNode>()
@@ -91,7 +91,9 @@ let CalculateReachabilities(startNodeIndex: int, cutEdges: List<int>) =
 
         // Iterate over all edges we haven't used up to this point and are not marked as cut
         { 0 .. edges.Length - 1}
-            |> Seq.filter (fun e -> reachedNode.Edges.Contains(e) = false && (edges[e].From = reachedNode.Index || edges[e].To = reachedNode.Index) && cutEdges.Contains(e) = false)
+            |> Seq.filter (fun e -> reachedNode.Edges.Contains(e) = false)
+            |> Seq.filter (fun e -> edges[e].From = reachedNode.Index || edges[e].To = reachedNode.Index)
+            |> Seq.filter (fun e -> cutEdges |> Seq.contains e = false)
             |> Seq.iter (fun edgeIndex ->
                 let edge = edges[edgeIndex]
 
@@ -112,28 +114,26 @@ let CalculateReachabilities(startNodeIndex: int, cutEdges: List<int>) =
 
 let FindEdgesToCut() =
     
-    let cutEdges = new List<int>()
+    let mutable counts = Array.zeroCreate edges.Length
 
-    for _ in { 1..3 } do
-        
-        let mutable counts = Array.zeroCreate edges.Length
+    let FindMostUsedEdge(paths: int Set seq) =
+        // Weight the edges by the length of the set they're used in
+        for set in paths do
+            set |> Seq.iter (fun edgeIndex -> counts[edgeIndex] <- counts[edgeIndex] + 1)
 
-        let FindMostUsedEdge(paths: int Set seq) =
-            // Weight the edges by the length of the set they're used in
-            for set in paths do
-                set |> Seq.iter (fun edgeIndex -> counts[edgeIndex] <- counts[edgeIndex] + 1)
+    // Investigate the set of paths from various starting positions, three of them ought to be most prominent
+    for i in { 0..10.. nodes.Count - 1 } do
+        FindMostUsedEdge(CalculateReachabilities(i, List.empty) |> Seq.map _.Value)
 
-        // Investigate the set of paths from various starting positions, there is one index most prominent
-        for i in { 0..10.. nodes.Count - 1 } do
-            FindMostUsedEdge(CalculateReachabilities(i, cutEdges) |> Seq.map _.Value)
+    let mostUsedEdges =
+        counts
+        |> Seq.sortDescending
+        |> Seq.take(3)
+        |> Seq.map (fun maxValue -> (counts |> Seq.findIndex (fun v -> v = maxValue)))
+        |> Seq.toList
 
-        let maxValue = counts |> Seq.max
-        let mostUsedEdge = counts |> Seq.findIndex (fun v -> v = maxValue)
-
-        printfn "Most used edge: %d" mostUsedEdge
-        cutEdges.Add(mostUsedEdge)
-
-    cutEdges
+    printfn "Most used edges: %A" mostUsedEdges
+    mostUsedEdges
 
 
 let cutEdges = FindEdgesToCut()
