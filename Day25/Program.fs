@@ -68,50 +68,83 @@ let DisconnectEdge(edge: Edge) =
 edges |> Seq.iter ConnectEdge
 
 printfn "%d Nodes: %A" nodes.Count (String.Join(", ", nodes.Values |> Seq.map _.Name))
+printfn "%d Edges" edges.Length
 
-for node in nodes.Values do
-    printfn "Node %s -> %s" node.Name (String.Join(", ", node.Connections |> Seq.map _.Name))
+let PrintEdge(edgeIndex) =
+    sprintf "%s -> %s" nodeNames[edges[edgeIndex].From] nodeNames[edges[edgeIndex].To]
 
-let rec CollectNodes(startNode: Node, set: HashSet<Node>) =
-    startNode.Connections
-        |> Seq.iter (fun childNode -> 
-            if set.Contains(childNode) = false then
-                ignore(set.Add(childNode))
-                CollectNodes(childNode, set)
-        )
+type ReachedNode = { Index: int; Edges: int Set }
 
-let connectedNodes = new HashSet<Node>()
-CollectNodes(nodes.Values |> Seq.head, connectedNodes)
+let GetVisiblePath(path: int Set) =
+    String.Join("|", path |> Seq.map (fun i -> sprintf "%s->%s" nodeNames[edges[i].From] nodeNames[edges[i].To]))
 
-printfn "Connected Nodes: %d of %d" connectedNodes.Count nodes.Count
+// Calculate reachabilities from one node to every other node, keep track of edges used
+let CalculateReachabilities(startNodeIndex: int, cutEdges: List<int>) =
+    let reachedNodes = new Dictionary<int, Set<int>>()
 
-let CheckEdgeTriplet(edge1: Edge, edge2: Edge, edge3: Edge) =
+    let nodesToInvestigate = new Queue<ReachedNode>()
+    nodesToInvestigate.Enqueue({ Index = startNodeIndex; Edges = Set.empty })
+    ignore(reachedNodes.Add(startNodeIndex, Set.empty))
+
+    while nodesToInvestigate.Count > 0 do
+        let reachedNode = nodesToInvestigate.Dequeue()
+
+        // Iterate over all edges we haven't used up to this point and are not marked as cut
+        { 0 .. edges.Length - 1}
+            |> Seq.filter (fun e -> reachedNode.Edges.Contains(e) = false && (edges[e].From = reachedNode.Index || edges[e].To = reachedNode.Index) && cutEdges.Contains(e) = false)
+            |> Seq.iter (fun edgeIndex ->
+                let edge = edges[edgeIndex]
+
+                if reachedNodes.ContainsKey(edge.From) = false then
+                    let newPath = reachedNode.Edges.Add(edgeIndex)
+                    ignore(reachedNodes.Add(edge.From, newPath))
+                    //printfn "Reached Node: %s through %s (%s)" nodeNames[edge.From] (GetVisiblePath(newPath)) (String.Join("|", newPath))
+                    nodesToInvestigate.Enqueue({ Index = edge.From; Edges = newPath })
+
+                if reachedNodes.ContainsKey(edge.To) = false then
+                    let newPath = reachedNode.Edges.Add(edgeIndex)
+                    ignore(reachedNodes.Add(edge.To, newPath))
+                    //printfn "Reached Node: %s through %s (%s)" nodeNames[edge.To] (GetVisiblePath(newPath)) (String.Join("|", newPath))
+                    nodesToInvestigate.Enqueue({ Index = edge.To; Edges = newPath })
+            )
+
+    reachedNodes
+
+let FindEdgesToCut() =
     
-    DisconnectEdge(edge1)
-    DisconnectEdge(edge2)
-    DisconnectEdge(edge3)
+    let cutEdges = new List<int>()
 
-    let firstGroup = new HashSet<Node>()
-    CollectNodes(nodes.Values |> Seq.head, firstGroup)
+    for _ in { 1..3 } do
+        
+        let mutable counts = Array.zeroCreate edges.Length
 
-    ConnectEdge(edge1)
-    ConnectEdge(edge2)
-    ConnectEdge(edge3)
+        let FindMostUsedEdge(paths: int Set seq) =
+            // Weight the edges by the length of the set they're used in
+            for set in paths do
+                set |> Seq.iter (fun edgeIndex -> counts[edgeIndex] <- counts[edgeIndex] + 1)
 
-    if firstGroup.Count <> nodes.Values.Count then
-        Some((firstGroup.Count, nodes.Values.Count - firstGroup.Count))
-    else
-        None
+        // Investigate the set of paths from various starting positions, there is one index most prominent
+        for i in { 0..10.. nodes.Count - 1 } do
+            FindMostUsedEdge(CalculateReachabilities(i, cutEdges) |> Seq.map _.Value)
 
-let splitCount =
-    seq {
-    for i in { 0 .. edges.Length - 1 } do
-        for j in { i+1 .. edges.Length - 1 } do
-            for k in { j+1 .. edges.Length - 1 } do
-                yield CheckEdgeTriplet(edges[i], edges[j], edges[k])
-    }
-    |> Seq.find _.IsSome
+        let maxValue = counts |> Seq.max
+        let mostUsedEdge = counts |> Seq.findIndex (fun v -> v = maxValue)
 
-printfn "Group 1 = %d, Group 2 = %d" (fst splitCount.Value) (snd splitCount.Value)
-printfn "[Part 1] Group counts multiplied = %d" ((fst splitCount.Value) * (snd splitCount.Value))
+        printfn "Most used edge: %d" mostUsedEdge
+        cutEdges.Add(mostUsedEdge)
+
+    cutEdges
+
+
+let cutEdges = FindEdgesToCut()
+printfn "Edges to cut: %A" cutEdges
+printfn "Edges to cut: %A" (cutEdges |> Seq.map PrintEdge)
+
+let reachedNodes = CalculateReachabilities(0, cutEdges)
+
+let group1 = reachedNodes.Count
+let group2 = nodes.Count - reachedNodes.Count
+
+printfn "Group 1 = %d, Group 2 = %d" group1 group2
+printfn "[Part 1] Group counts multiplied = %d" (group1 * group2)
 
